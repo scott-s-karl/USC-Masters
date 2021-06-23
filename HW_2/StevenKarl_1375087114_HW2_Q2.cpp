@@ -21,7 +21,6 @@ array2D::array2D(int xResolution, int yResolution){
 array2D::~array2D(){
         for(int i = 0; i < yRes; i++){
                 free(xtable[i]);
-                //xtable[i] = new float[xRes];
         }
         free(xtable);
 }
@@ -30,7 +29,6 @@ void array2D::getSize(int &xResolution, int &yResolution){
         yResolution = yRes;
 }
 void array2D::setValue(int col, int row, float val){
-        //printf("row is %d , col is %d, val is %d\n", x,y,val);
         xtable[row][col] = val;
 }
 float array2D::getValue(int col, int row){
@@ -38,11 +36,9 @@ float array2D::getValue(int col, int row){
 }
 
 // Child Class of array2D
-PGMImage::PGMImage(int xResolution, int yResolution, char* imageFilename){
+PGMImage::PGMImage(int xResolution, int yResolution, char* imageFilename)
+        : array2D(xResolution,yResolution){
         strcpy(filename, imageFilename);
-}
-PGMImage::~PGMImage(){
-        ~array2D();
 }
 void PGMImage::getResolution(int &xResolution, int &yResolution){
         getSize(xResolution, yResolution);

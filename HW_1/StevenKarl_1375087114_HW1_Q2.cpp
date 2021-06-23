@@ -14,7 +14,7 @@
 void printStars(int n){
 
         // Print Loop
-        for (size_t i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
                 std::cout << "*";
         }
 }
@@ -29,13 +29,15 @@ void display_uniform(){
         double r;
         int j;
         int c = 0;
+        double calc;
+        int numAss;
 
         std::cout << '\n';
         std::cout << "Uniform Distribution" << '\n';
         std::cout << "--------------------" << '\n';
 
         // Data Collection Loop
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10000; i++) {
                 r = (double) rand()/RAND_MAX;
                 j = floor(r*10);
                 if(j == 10){
@@ -45,9 +47,11 @@ void display_uniform(){
         }
 
         // Display Loop
-        for (const int &val : binArr) {
+        for (const double &val : binArr) {
                 std::cout << c << "-";
-                printStars(val);
+                calc = 100*(val/10000);
+                numAss = floor(calc);
+                printStars(numAss);
                 std::cout << '\n';
                 c++;
         }
@@ -64,13 +68,16 @@ void display_triangular(){
         double r1,r2,r3;
         int j;
         int c = 0;
+        int numAss;
+        double calc;
+
 
 
         std::cout << "Triangular Distribution" << '\n';
         std::cout << "-----------------------" << '\n';
 
         // Data Collection Loop
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10000; i++) {
                 r1 = (double) rand()/RAND_MAX;
                 r2 = (double) rand()/RAND_MAX;
                 r3 = 0.5*(r1 + r2);
@@ -82,9 +89,11 @@ void display_triangular(){
         }
 
         // Display Loop
-        for (const int &val : binArr2) {
+        for (const double &val : binArr2) {
                 std::cout << c << "-";
-                printStars(val);
+                calc = 100*(val/10000);
+                numAss = floor(calc);
+                printStars(numAss);
                 std::cout << '\n';
                 c++;
         }

@@ -29,8 +29,6 @@ public:
         //Constructor
         PGMImage(int xResolution, int yResolution, char* imageFilename);
 
-        //Destructor
-        ~PGMImage();
         void getResolution(int &xResolution, int &yResolution);
         void setPixel(int x, int y, float val);
         float getPixel(int x, int y);

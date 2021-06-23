@@ -5,27 +5,33 @@
 
 
 class array2D{
-private:
-        int tmp;
 public:
         // Constructor
         array2D(int xResolution, int yResolution){
                 xRes = xResolution;
                 yRes = yResolution;
+                // New version
                 //xtable = new float*[yRes];
+
+                // calloc version
                 xtable = (float **)calloc(yRes, sizeof(*xtable));
                 for(int i = 0; i < yRes; i++){
+
+                        // Calloc version
                         xtable[i] = (float *)calloc(xRes, sizeof(float));
+
+                        //New version
                         //xtable[i] = new float[xRes];
                 }
         }
 
         // Destructor
         ~array2D(){
+                // Freeing the memory starting with the subarrays
                 for(int i = 0; i < yRes; i++){
                         free(xtable[i]);
-                        //xtable[i] = new float[xRes];
                 }
+                // free the first pointer
                 free(xtable);
         }
         void getSize(int &xResolution, int &yResolution){
@@ -33,7 +39,6 @@ public:
                 yResolution = yRes;
         }
         void setValue(int col, int row, float val){
-                //printf("row is %d , col is %d, val is %d\n", x,y,val);
                 xtable[row][col] = val;
         }
         float getValue(int col, int row){
@@ -47,7 +52,7 @@ protected:
 };
 
 int main(int argc, char const *argv[]) {
-        array2D *a = new array2D(10,6);
+        array2D *a = new array2D(320,240);
         int xRes, yRes;
 
         // a -> getSize is the same as (*a).getSize()

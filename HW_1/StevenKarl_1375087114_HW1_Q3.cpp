@@ -11,7 +11,7 @@
 #include <math.h>
 
 void print_stars(int n){
-        for (size_t i = 0; i < n; i++) {
+        for (int i = 0; i < n; i++) {
                 std::cout << "*";
         }
         std::cout << '\n';
@@ -30,7 +30,8 @@ void display_paretoGraph(){
         double largestValue = -10000000;
         double smallestValue = 10000000;
         int binArr[10] = {0};
-        double a = 0.4;
+        double a = 8;
+        int numAss = 0;
 
         // Initial Print
         std::cout << '\n';
@@ -38,7 +39,7 @@ void display_paretoGraph(){
         std::cout << "-------------------------" << '\n';
 
         // Finding the min and the max
-        for (size_t i = 0; i < 100; i++) {
+        for (size_t i = 0; i < 1000; i++) {
 
                 r = (double) rand()/RAND_MAX;
 
@@ -62,7 +63,7 @@ void display_paretoGraph(){
         srand(time(NULL));
 
         // Loop through and bin the values
-        for (size_t i = 0; i < 100; i++) {
+        for (size_t i = 0; i < 1000; i++) {
                 r = (double) rand()/RAND_MAX;
 
                 // Calculate pareto value
@@ -79,9 +80,10 @@ void display_paretoGraph(){
         }
 
         // Loop and print
-        for (const int &val : binArr) {
+        for (const double &val : binArr) {
                 std::cout << c << "-";
-                print_stars(val);
+                numAss = floor(100*(val/1000));
+                print_stars(numAss);
                 std::cout << '\n';
                 c++;
         }
