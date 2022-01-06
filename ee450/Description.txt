@@ -1,0 +1,10 @@
+Course Description:
+This project folder contains all work for USC course EE450.
+
+Timeline:
+Spring 2022
+January 10th - May 10th
+
+Teacher:
+Zahid Ali
+
