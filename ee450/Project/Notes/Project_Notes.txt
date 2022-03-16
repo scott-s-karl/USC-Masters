@@ -1,0 +1,28 @@
+Steven Karl
+February 23rd 2022
+EE450 Project - Notes
+
+General Info:
+--------------
+1. Creating a simplified version of a blockchain system that will help to understand how cryptocurrency transactions work.
+
+2. We will have 3 nodes on the blockchain where each stores a group of transactions.
+   a. These are representing the backend servers
+
+3. We will have a main server that is in charge of all the calulations and updating the wallets for each user.
+
+4. Transactions:
+   a. Transaction Number
+   b. Sender
+   c. Receiver
+   d. Amount being transferred
+
+5. Clients A and B communicate with a main server to pull information from the backend servers A,B, and C.
+   a. Client to Main -- TCP
+   b. Main to Servers -- UDP
+
+6. Source Files:
+   a. serverM.c
+   b. serverA.c, serverB.c, serverC.c
+   c. clientA.c
+   d. clientB.c
