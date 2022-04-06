@@ -6,8 +6,8 @@
 #include "clientA.h"
 
 // Macros
-#define 4141 // Client Port
-#define MAINPORT 25711 // Main Server TCP Port
+#define CLIENTPORT "4141" // Client Port
+#define MAINPORT "25711" // Main Server TCP Port
 
 // Local Functions
 void
@@ -28,10 +28,10 @@ check_if_getaddrinfo_failed(int getaddrinfo_result){
 }
 
 void
-set_sock_preferences(struct addrinfo *sock_prefs){
-  memset(&sock_prefs, 0, sizeof(sock_prefs)); // Empty
-  sock_prefs.ai_family = AF_UNSPEC; // IPv4 or IPv6
-  sock_prefs.ai_socktype = SOCK_STREAM; // UDP type
+set_sock_preferences(struct addrinfo *sock_preferences){
+  memset(sock_preferences, 0, sizeof(*sock_preferences)); // Empty
+  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  sock_preferences->ai_socktype = SOCK_STREAM; // UDP type
 }
 
 void
@@ -41,7 +41,7 @@ create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns){
   struct addrinfo *cnntn;
   
   // Loop through possible connections
-  for(cnntn = *poss_cnntns;
+  for(cnntn = poss_cnntns;
       cnntn != NULL;
       cnntn = cnntn->ai_next){
     // Attempt to create a socket
@@ -84,10 +84,10 @@ int main(int argc, const char* argv[]){
   struct addrinfo *poss_cnntns;
   
   // Check args count
-  check_number_of_args(int argc);
+  check_number_of_args(argc);
   
   // Setup client preferences
-  set_sock_preferenes(&sock_preferences);
+  set_sock_preferences(&sock_preferences);
   
   // Get and check addrinfo
   getaddrinfo_result = getaddrinfo(NULL,
@@ -97,10 +97,10 @@ int main(int argc, const char* argv[]){
   check_if_getaddrinfo_failed(getaddrinfo_result);
   
   // Create socket and connect
-  create_sock_and_connect(client_sock_fd, &poss_cnntns);
-  freeaddrinfo(&poss_cnntns);
+  create_sock_and_connect(&client_sock_fd, poss_cnntns);
+  freeaddrinfo(poss_cnntns);
   
   // Boot Up Message
-  printf("The client A is up and running."\n);
+  printf("The client A is up and running.\n");
   
 }

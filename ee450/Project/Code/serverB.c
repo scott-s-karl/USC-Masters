@@ -19,10 +19,10 @@ check_number_of_args(int argc){
 
 void
 set_sock_preferences(struct addrinfo *sock_preferences){
-  memset(&sock_preferences, 0, sizeof sock_preferences);
-  sock_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
-  sock_prefs->ai_socktype = SOCK_DGRAM; // UDP
-  sock_prefs->ai_flags = AI_PASSIVE; // Use my IP
+  memset(sock_preferences, 0, sizeof *sock_preferences);
+  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  sock_preferences->ai_socktype = SOCK_DGRAM; // UDP
+  sock_preferences->ai_flags = AI_PASSIVE; // Use my IP
 }
 
 void
@@ -40,7 +40,7 @@ create_sock_and_bind(int *sock_fd, struct addrinfo *poss_cnntns){
   struct addrinfo *cnntn;
   
   // Loop through linked list of connections
-  for(cnntn = *poss_cnntns;
+  for(cnntn = poss_cnntns;
       cnntn != NULL;
       cnntn = cnntn->ai_next){
     // Attempt to call socket
@@ -70,7 +70,7 @@ create_sock_and_bind(int *sock_fd, struct addrinfo *poss_cnntns){
   // Check if we made it to a NULL value/list empty/
   if(cnntn == NULL){
     fprintf(stderr, "Server B: Failed to connect.");
-    exit(2)
+    exit(2);
   }
 }
 

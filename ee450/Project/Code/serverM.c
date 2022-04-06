@@ -48,10 +48,22 @@ check_if_getaddrinfo_failed(int getaddrinfo_result, char *s){
   sock_prefs - Struct to store udp preferences in
 */
 void
-set_udp_sock_preferences(struct addrinfo *sock_prefs){
-  memset(&sock_prefs, 0, sizeof(sock_prefs)); // Empty
-  sock_prefs.ai_family = AF_UNSPEC; // IPv4 or IPv6
-  sock_prefs.ai_socktype = SOCK_DGRAM; // UDP type
+set_tcp_sock_preferences(struct addrinfo *sock_preferences){
+  memset(sock_preferences, 0, sizeof(*sock_preferences)); // Empty
+  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  sock_preferences->ai_socktype = SOCK_STREAM; // TCP type
+  sock_preferences->ai_flags = AI_PASSIVE; // Use my ip
+}
+
+/*
+  Desc - Sets up the udp sock preferences (Empty, family, type)
+  sock_prefs - Struct to store udp preferences in
+*/
+void
+set_udp_sock_preferences(struct addrinfo *sock_preferences){
+  memset(sock_preferences, 0, sizeof(*sock_preferences)); // Empty
+  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  sock_preferences->ai_socktype = SOCK_DGRAM; // UDP type
 }
 /*
   Desc -> Get socket based on possible connections
@@ -88,7 +100,7 @@ get_available_socket(struct addrinfo **cnntn, struct addrinfo *poss_cnntns){
 
 void
 create_tcp_sock_and_bind(int *sock_fd,
-			 struct addrrinfo *poss_cnntns){
+			 struct addrinfo *poss_cnntns){
   /* Local Variables */
   int yes = 1; // non-zero signals a sock option will change
   int bind_status; // Return code for bind call
@@ -153,10 +165,9 @@ create_udp_sock_and_bind(int *sock_fd,
   struct addrinfo *cnntn;
 
   // Loop through the possible connections and bind to the first available
-  for(cnntn = *poss_cnntns;
+  for(cnntn = poss_cnntns;
       cnntn != NULL;
       cnntn = cnntn->ai_next){
-
     // Attempt to create the socket
     *sock_fd = socket(cnntn->ai_family,
 		      cnntn->ai_socktype,
@@ -181,7 +192,7 @@ create_udp_sock_and_bind(int *sock_fd,
   }
   // Check if the cnntn is null after going through all of the linked list
   if(cnntn == NULL){
-    fprinf(stderr, "mainudp: fail to connect\n");
+    fprintf(stderr, "mainudp: fail to connect\n");
     exit(2);
   }
 }
@@ -205,12 +216,12 @@ sigchld_handler(int s){
 }
 
 void
-reap_zombie_processes(*sa){
+reap_zombie_processes(struct sigaction *sa){
   int sigaction_status;
   sa->sa_handler = sigchld_handler;
   sigemptyset(&sa->sa_mask);
   sa->sa_flags = SA_RESTART;
-  sigaction_status = sigaction(SIGCHLD, sa, NULL)
+  sigaction_status = sigaction(SIGCHLD, sa, NULL);
   if(sigaction_status  == -1){
     perror("main: sigaction failed");
     exit(1);
@@ -218,7 +229,7 @@ reap_zombie_processes(*sa){
 }
 
 // Main Function
-int main(int argc const char *argv[]){
+int main(int argc, const char *argv[]){
 
   // Check the number of arguments - should be none other then name
   check_number_of_args(argc);
@@ -231,11 +242,11 @@ int main(int argc const char *argv[]){
 
   
   struct addrinfo tcp_a_sock_prefs; // tcp connection prefs
-  struct addrinfo tcp_a_poss_cnntns;
+  struct addrinfo *tcp_a_poss_cnntns;
   struct addrinfo tcp_b_sock_prefs; // tcp connection prefs
-  struct addrinfo tcp_b_poss_cnntns;
+  struct addrinfo *tcp_b_poss_cnntns;
   struct addrinfo udp_sock_prefs; // udp connection prefs
-  struct addrinfo udp_poss_cnntns;
+  struct addrinfo *udp_poss_cnntns;
   
   // Client A
   int client_a_fd;
@@ -260,10 +271,10 @@ int main(int argc const char *argv[]){
 				   &sva_sock_prefs,
 				   &sva_poss_cnntns); // setup structs
   check_if_getaddrinfo_failed(getaddrinfo_result, "sva"); // Check for non zero
-  get_available_socket(&sva_cnntn, &sva_poss_cnntns); // Socket() call for returned connections
+  get_available_socket(&sva_cnntn, sva_poss_cnntns); // Socket() call for returned connections
   
   // Backend Server B
-  struct addrinfo *svb_sock_prefs;
+  struct addrinfo svb_sock_prefs;
   struct addrinfo *svb_cnntn;
   struct addrinfo *svb_poss_cnntns;
   int svb_port;
@@ -273,10 +284,10 @@ int main(int argc const char *argv[]){
 				   &svb_sock_prefs,
 				   &svb_poss_cnntns);
   check_if_getaddrinfo_failed(getaddrinfo_result, "svb");
-  get_available_socket(&svb_cnntn, &svb_poss_cnntns);
+  get_available_socket(&svb_cnntn, svb_poss_cnntns);
   
   // Backend Server C
-  struct addrinfo *svc_sock_prefs;
+  struct addrinfo svc_sock_prefs;
   struct addrinfo *svc_poss_cnntns;
   struct addrinfo *svc_cnntn;
   int svc_port;
@@ -286,7 +297,7 @@ int main(int argc const char *argv[]){
 				   &svc_sock_prefs,
 				   &svc_poss_cnntns);
   check_if_getaddrinfo_failed(getaddrinfo_result, "svc");
-  get_available_socket(&svc_cnntn, &svc_poss_cnntns);
+  get_available_socket(&svc_cnntn, svc_poss_cnntns);
 
   // Setup Main Server TCP Support Client A
   set_tcp_sock_preferences(&tcp_a_sock_prefs);
