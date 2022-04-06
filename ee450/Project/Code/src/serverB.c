@@ -3,7 +3,7 @@
 // ----------------
 
 // Includes
-#include "serverB.h"
+#include "../header/serverB.h"
 
 // Macros
 #define SRVRBPORT "22711" // Port # ServerB runs on
