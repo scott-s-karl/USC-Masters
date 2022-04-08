@@ -4,6 +4,7 @@
 
 // Include Statements
 #include "../header/serverM.h"
+#include <stdio.h>
 
 // Define Macros
 #define SVRAPORT "21711" // Port # ServerA runs on
@@ -14,6 +15,7 @@
 #define MAINTCPPORTB "26711" // Port # Main Server TCP runs on
 
 #define BACKLOG 10 // max len(pending connections queue) for listening
+#define BUFLEN 2048
 
 // Local Functions
 /*
@@ -228,6 +230,69 @@ reap_zombie_processes(struct sigaction *sa){
   }
 }
 
+int
+get_port(struct sockaddr *addr){
+  // Check what type of IP address we have IPv6 IPv4 other
+  if(addr->sa_family == AF_INET){ // IPv4
+    char *ip_addr = (char *)calloc(INET_ADDRSTRLEN, sizeof(*ip_addr));
+    inet_ntop(addr->sa_family,
+	      get_in_addr((struct sockaddr *)&addr),
+	      ip_addr,
+	      INET_ADDRSTRLEN);
+    printf("Main Server: Got connection from %s\n", ip_addr);
+    free(ip_addr);
+    return ((struct sockaddr_in *)&addr)->sin_port;
+  }
+  else if(addr->sa_family == AF_INET6){ // IPv6
+    char *ip_addr = (char *)calloc(INET6_ADDRSTRLEN, sizeof(*ip_addr));
+    inet_ntop(addr->sa_family,
+	      get_in_addr((struct sockaddr *)&addr),
+	      ip_addr,
+	      INET6_ADDRSTRLEN);
+    printf("Main Server: Got connection from %s\n", ip_addr);
+    free(ip_addr);
+    return ((struct sockaddr_in6 *)&addr)->sin6_port;
+  }
+  else{ // Invalid
+    perror("The socket type is not of type IPv4 or IPv6\n");
+    exit(1);
+  }
+}
+
+int
+receive_client_msg(char **buf,
+		     int buf_len,
+		     int sock_fd){
+  // Call recv to get the msg from the client fd
+  int num_bytes;
+  num_bytes = recv(sock_fd,
+		   &buf,
+		   buf_len,
+		   0);
+
+  // Check for bad return value -1
+  if(num_bytes == -1){
+    perror("Error: recv call failed for Client data\n");
+    close(sock_fd);
+    exit(1);
+  }
+
+  // Terminate the buf string by adding a null byte
+  (*buf)[num_bytes] = '\0';
+  return num_bytes;
+}
+
+void
+parse_client_msg(int *client_request_type,
+		 char *username,
+		 char *sender,
+		 char *receiver,
+		 int *transfer_amount,
+		 char *buf,
+		 int port){
+  
+}
+
 // Main Function
 int main(int argc, const char *argv[]){
 
@@ -235,6 +300,9 @@ int main(int argc, const char *argv[]){
   check_number_of_args(argc);
 
   // Local variables
+  char *buf = (char *)calloc(BUFLEN, sizeof *buf);
+  int send_status;
+  int recv_status;
   int main_server_tcp_a_fd; // File descriptor tcp
   int main_server_tcp_b_fd; // File descriptor tcp
   int main_server_udp_fd; // File descriptor udp
@@ -347,15 +415,107 @@ int main(int argc, const char *argv[]){
   reap_zombie_processes(&sa);
   
   // Start Messages
-  printf("The main server is up and running");
-  printf("...waiting for connections...\n");
+  printf("The main server is up and running\n");
 
   // Set initial case for connection state
   int state = CTOMAIN;
   
   // Connection Loop
-  while(1){ // main accept() loop 
-    break;
-  }
+  while(1){ // main accept() loop
+    
+    // Empty out the buffer before each iteration
+    memset(buf, 0, BUFLEN * sizeof(*buf));
+    
+    // Switch on clientA, clientB, SVRA, SVRB, SVRC
+    switch(state){
+      
+      // Define the variables to store info in when parsing requests
+      int client_request_type;
+      char *username = (char *)calloc(NAMELEN, sizeof(*username));
+      char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
+      char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+      int transfer_amount;
+      
+    case CATOMAIN: // clientA to main
+      printf("Case - Client A to Main\n");
+
+      // Accept the connection and store in fd
+      client_a_addr_sz = sizeof client_a_addr;
+      client_a_fd = accept(main_tcp_a_fd,
+			   (struct sockaddr *)&client_a_addr,
+			   &client_a_addr_sz);
+      // Check fd
+      if(client_a_fd == -1){
+	perror("Client to Main Server: Accept Error!");
+	continue;
+      }
+
+      // Port/ Where connection came from
+      client_a_port = get_port((struct sockaddr *)&client_addr);
+
+      // From bgnet forking
+      if(!fork()){ // this is the child process
+	// Receive the msg from clientA
+	num_bytes_received = receive_client_msg(&buf,
+						   BUFLEN,
+						   client_a_fd);
+
+	// Parse the msg and fill the variables
+	parse_client_msg(&client_request_type,
+			 &username,
+			 &sender,
+			 &receiver,
+			 &transfer_amount,
+			 buf,
+			 client_a_port);
+	
+	// Check the type of request
+	if(client_request_type == 1){ // Balance query
+	  printf("Balance Query\n");
+	}
+	else if(client_request_type == 2){ // Transfer Query
+	  printf("Tranfer Query\n");
+	}
+	else{ // Invalid query
+	  printf("Invalid Query\n");
+	}
+	
+      }
+      
+      break;
+    case MAINTOCA: // Main to clientA
+      printf("Case - Main to Client A\n");
+      break;
+    case CBTOMAIN: // clientB to main
+      printf("Case - Client B to Main\n");
+      break;
+    case MAINTOCA: // Main to clientB
+      printf("Case - Main to Client A\n");
+      break;
+    case MAINTOSA: // Main to Server A
+      printf("Case - Main to Server A\n");
+      break;
+    case MAINTOSB: // Main to Server B
+      printf("Case - Main to Server B\n");
+      break;
+    case MAINTOSC: // Main to Server C
+      printf("Case - Main to Server C\n");
+      break;
+    default: // All other cases error
+      printf("Case - Default\n");
+      break;
+    } // Switch
+    sleep(5);
+    printf("...Waiting...\n");
+  } // While loop
+
+  // Close descriptor
+  close(client_a_fd);
+  close(client_b_fd);
   
+  // Free memory
+  free(buf);
+  
+  // Return from main
+  return 0;
 }

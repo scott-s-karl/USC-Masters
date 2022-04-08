@@ -4,6 +4,7 @@
 
 // Includes
 #include "../header/serverC.h"
+#include "stdio.h"
 
 // Macros
 #define SRVRCPORT "23711" // Port # ServerC runs on
@@ -103,4 +104,9 @@ int main(int argc, const char *argv[]){
 
   // Start Messages
   printf("The Server C is up and running using UDP on port %s\n", SRVRCPORT);
+
+  while(1){
+    sleep(10);
+    printf("...waiting...\n");
+  }
 }

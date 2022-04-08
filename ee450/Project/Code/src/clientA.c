@@ -8,6 +8,7 @@
 // Macros
 #define CLIENTPORT "4141" // Client Port
 #define MAINPORT "25711" // Main Server TCP Port
+#define CLIENTBUFLEN 2048
 
 // Local Functions
 void
@@ -76,6 +77,33 @@ create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns){
   }
 }
 
+void
+send_tcp_msg(int sock_fd,
+	     int msg_len,
+	     char *msg){
+  // Send and Check for errors
+  if(send(sock_fd, msg, msg_len, 0) == -1){
+    perror("Failed to send initial client message to Main Server!\n");
+    close(sock_fd);
+    exit(1);
+  }
+}
+
+void
+recv_tcp_msg(char *buf,
+	     int buf_len,
+	     int sock_fd){
+  // Make sure your buf is empty
+  memset(buf, 0, buf_len * sizeof(*buf));
+  int num_bytes = recv(sock_fd, buf, buf_len, 0);
+  if(num_bytes == -1){
+    perror("Error: receiving client data\n");
+    exit(1);
+  }
+  // Make a cstring by adding nullbyte
+  buf[num_bytes] = '\0';
+}
+
 int main(int argc, const char* argv[]){
   // Local Variables
   int getaddrinfo_result;
@@ -102,5 +130,51 @@ int main(int argc, const char* argv[]){
   
   // Boot Up Message
   printf("The client A is up and running.\n");
+
+  // Define buffer for sending and receiving
+  char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
+  char *client_buf = (char *)calloc(CLIENTBUFLEN, sizof *client_buf);
+
+  // Switch based on arguments given
+  switch(argc){
+  case 2: // Check Wallet ./clientA Martin
+    printf("Action - CHECK WALLET\n");
+
+    // Send Data
+    sprintf(msg, "%s", argv[1]);
+    send_balance_enquiry(client_sock_fd, MSGLEN, msg);
+    printf("%s sent a balance enquiry request to the main server\n", msg);
+
+    // Receive Data  
+    recv_enquiry_data(client_buf,
+		      CLIENTBUFLEN,
+		      client_sock_fd);
+
+    // Print result - (Error/Success)
+    if(is_balance_enquiry_error){
+      printf("Bad Username: %s. User not found in database.\n", argv[1]);
+    }
+    printf("The current balance of %s is: xxx alicoins.", argv[1]);
+    break;
+    
+  case 4: // TXCOINS ./clientA Martin Luke 100 
+    printf("Action - TXCOINS\n");
+    printf("%s has requested to transfer %s coins to %s\n", argv[1],argv[3],argv[2]);  
+    break;
+    
+  default: // All other argc values error out
+    fprintf(stderr, "Invlaid number of arguments\n");
+    break;
+    
+  }// End Switch
   
+  // Close descriptor
+  close(client_sock_fd);
+
+  // Free memory
+  free(msg);
+  free(client_buf);
+
+  // Return from main
+  return 0;
 }

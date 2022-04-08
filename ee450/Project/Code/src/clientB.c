@@ -102,5 +102,21 @@ int main(int argc, const char* argv[]){
   
   // Boot Up Message
   printf("The client B is up and running.\n");
-  
+
+    // Switch based on arguments given
+  switch(argc){
+  case 2: // Check Wallet ./clientA Martin
+    printf("Action - CHECK WALLET\n");
+    printf("User - %s\n", argv[1]);
+    break;
+  case 4: // TXCOINS ./clientA Martin Luke 100 
+    printf("Action - TXCOINS\n");
+    printf("Sender - %s\n", argv[1]);
+    printf("Receiver - %s\n", argv[2]);
+    printf("Amount - %s\n", argv[3]);
+    break;
+  default: // All other argc values error out
+    fprintf(stderr, "Invlaid number of arguments\n");
+    break;
+  }
 }
