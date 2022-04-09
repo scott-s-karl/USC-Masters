@@ -16,6 +16,7 @@
 
 #define BACKLOG 10 // max len(pending connections queue) for listening
 #define BUFLEN 2048
+#define NAMELEN 2048
 
 // Local Functions
 /*
@@ -156,9 +157,7 @@ create_tcp_sock_and_bind(int *sock_fd,
   }
 }
 
-/*
 
-*/
 void
 create_udp_sock_and_bind(int *sock_fd,
 			 struct addrinfo *poss_cnntns){
@@ -230,8 +229,19 @@ reap_zombie_processes(struct sigaction *sa){
   }
 }
 
+void *
+get_in_addr(struct sockaddr *sa){
+  if(sa->sa_family == AF_INET){
+    return &(((struct sockaddr_in *)sa)->sin_addr);
+  }
+  else{
+    return &(((struct sockaddr_in6 *)sa)->sin6_addr);
+  }
+}
+
 int
 get_port(struct sockaddr *addr){
+  printf("Getting the port of the client addr\n");
   // Check what type of IP address we have IPv6 IPv4 other
   if(addr->sa_family == AF_INET){ // IPv4
     char *ip_addr = (char *)calloc(INET_ADDRSTRLEN, sizeof(*ip_addr));
@@ -261,12 +271,13 @@ get_port(struct sockaddr *addr){
 
 int
 receive_client_msg(char **buf,
-		     int buf_len,
-		     int sock_fd){
+		   int buf_len,
+		   int sock_fd){
+  printf("Starting to receive from client\n");
   // Call recv to get the msg from the client fd
   int num_bytes;
   num_bytes = recv(sock_fd,
-		   &buf,
+		   *buf,
 		   buf_len,
 		   0);
 
@@ -283,6 +294,29 @@ receive_client_msg(char **buf,
 }
 
 void
+get_request_type(char *buf,
+		 int *client_request_type){
+  // Loop through the msg count spaces
+  int spaces = 0;
+  for(int i = 0; buf[i] != '\0'; i++){
+    if(buf[i] == ' '){
+      spaces++;
+    }
+  }
+  // Set request type based on space count
+  if(spaces == 0){
+    *client_request_type = 1;
+  }
+  else if(spaces == 2){
+    *client_request_type = 2;
+  }
+  else{
+    printf("Bad Reqeust\n");
+    *client_request_type = 0;
+  }
+}
+
+void
 parse_client_msg(int *client_request_type,
 		 char *username,
 		 char *sender,
@@ -290,7 +324,21 @@ parse_client_msg(int *client_request_type,
 		 int *transfer_amount,
 		 char *buf,
 		 int port){
-  
+
+  // Get the request type
+  get_request_type(buf,
+		   client_request_type);
+
+  // Parse based on type
+  if(*client_request_type == 1){
+    sscanf(buf, "%s", username);
+  }
+  else if(*client_request_type == 2){
+    sscanf(buf, "%s %s %d", sender, receiver, transfer_amount);
+  }
+  else{
+    printf("Bad Arguments\n");
+  }
 }
 
 // Main Function
@@ -301,8 +349,8 @@ int main(int argc, const char *argv[]){
 
   // Local variables
   char *buf = (char *)calloc(BUFLEN, sizeof *buf);
-  int send_status;
-  int recv_status;
+  //int num_bytes_sent;
+  int num_bytes_recv;
   int main_server_tcp_a_fd; // File descriptor tcp
   int main_server_tcp_b_fd; // File descriptor tcp
   int main_server_udp_fd; // File descriptor udp
@@ -323,16 +371,16 @@ int main(int argc, const char *argv[]){
   int client_a_port;
   
   // Client B
-  int client_b_fd;
-  struct sockaddr_storage client_b_addr;
-  socklen_t client_b_addr_sz;
-  int client_b_port;
+  //int client_b_fd;
+  //struct sockaddr_storage client_b_addr;
+  //socklen_t client_b_addr_sz;
+  //int client_b_port;
   
   // Backend Server A
   struct addrinfo sva_sock_prefs; // General Socket Preferences
   struct addrinfo *sva_poss_cnntns; // Return Linked List
   struct addrinfo *sva_cnntn; // One of the items in list
-  int sva_port; // Used later backend server side interface
+  //int sva_port; // Used later backend server side interface
   set_udp_sock_preferences(&sva_sock_prefs); // AI_FAMILY/TYPE
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRAPORT,
@@ -345,7 +393,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svb_sock_prefs;
   struct addrinfo *svb_cnntn;
   struct addrinfo *svb_poss_cnntns;
-  int svb_port;
+  // int svb_port;
   set_udp_sock_preferences(&svb_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRBPORT,
@@ -358,7 +406,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svc_sock_prefs;
   struct addrinfo *svc_poss_cnntns;
   struct addrinfo *svc_cnntn;
-  int svc_port;
+  //int svc_port;
   set_udp_sock_preferences(&svc_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRCPORT,
@@ -418,70 +466,72 @@ int main(int argc, const char *argv[]){
   printf("The main server is up and running\n");
 
   // Set initial case for connection state
-  int state = CTOMAIN;
+  int state = CATOMAIN;
   
   // Connection Loop
   while(1){ // main accept() loop
     
     // Empty out the buffer before each iteration
     memset(buf, 0, BUFLEN * sizeof(*buf));
-    
+    // Define the vars to store in when parsing requests
+    int client_request_type;
+    char *username = (char *)calloc(NAMELEN, sizeof(*username));
+    char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
+    char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+    int transfer_amount;
+      
     // Switch on clientA, clientB, SVRA, SVRB, SVRC
     switch(state){
-      
-      // Define the variables to store info in when parsing requests
-      int client_request_type;
-      char *username = (char *)calloc(NAMELEN, sizeof(*username));
-      char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
-      char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
-      int transfer_amount;
       
     case CATOMAIN: // clientA to main
       printf("Case - Client A to Main\n");
 
       // Accept the connection and store in fd
       client_a_addr_sz = sizeof client_a_addr;
-      client_a_fd = accept(main_tcp_a_fd,
+      client_a_fd = accept(main_server_tcp_a_fd,
 			   (struct sockaddr *)&client_a_addr,
 			   &client_a_addr_sz);
+      printf("Just after accept call\n");
       // Check fd
       if(client_a_fd == -1){
-	perror("Client to Main Server: Accept Error!");
+	perror("Client to Main Server: Accept Error!\n");
 	continue;
       }
 
       // Port/ Where connection came from
-      client_a_port = get_port((struct sockaddr *)&client_addr);
+      client_a_port = get_port((struct sockaddr *)&client_a_addr);
+      printf("Client port: %d\n", client_a_port); 
 
       // From bgnet forking
-      if(!fork()){ // this is the child process
+      if(client_a_fd != -1){ // this is the child process
+	printf("Inside the fork if statement\n");
 	// Receive the msg from clientA
-	num_bytes_received = receive_client_msg(&buf,
-						   BUFLEN,
-						   client_a_fd);
-
+	num_bytes_recv = receive_client_msg(&buf,
+					    BUFLEN,
+					    client_a_fd);
+	printf("Received Bytes: %d\n", num_bytes_recv);
 	// Parse the msg and fill the variables
 	parse_client_msg(&client_request_type,
-			 &username,
-			 &sender,
-			 &receiver,
+			 username,
+			 sender,
+			 receiver,
 			 &transfer_amount,
 			 buf,
 			 client_a_port);
 	
-	// Check the type of request
-	if(client_request_type == 1){ // Balance query
+	// Check the type of request and set the state
+	if(client_request_type > 0){ // Balance query
 	  printf("Balance Query\n");
+	  state = MAINTOSA;
 	}
 	else if(client_request_type == 2){ // Transfer Query
 	  printf("Tranfer Query\n");
 	}
 	else{ // Invalid query
 	  printf("Invalid Query\n");
-	}
-	
+	}	
       }
-      
+      state = (num_bytes_recv != -1 ? ENDTRANS : state);
       break;
     case MAINTOCA: // Main to clientA
       printf("Case - Main to Client A\n");
@@ -489,11 +539,24 @@ int main(int argc, const char *argv[]){
     case CBTOMAIN: // clientB to main
       printf("Case - Client B to Main\n");
       break;
-    case MAINTOCA: // Main to clientB
+    case MAINTOCB: // Main to clientB
       printf("Case - Main to Client A\n");
       break;
     case MAINTOSA: // Main to Server A
       printf("Case - Main to Server A\n");
+
+      // Get the port server A
+
+      // Check the type of request to send
+
+      // Send info from main to server A
+
+      // Wait to receive response from server A
+
+      // Parse and store the response from serverA
+
+      // Switch the state to Main to server B
+      
       break;
     case MAINTOSB: // Main to Server B
       printf("Case - Main to Server B\n");
@@ -501,17 +564,20 @@ int main(int argc, const char *argv[]){
     case MAINTOSC: // Main to Server C
       printf("Case - Main to Server C\n");
       break;
+    case ENDTRANS:
     default: // All other cases error
       printf("Case - Default\n");
       break;
     } // Switch
-    sleep(5);
-    printf("...Waiting...\n");
+    if(state == ENDTRANS){
+      printf("Ending While loop\n");
+      break;
+    }
+    
   } // While loop
 
   // Close descriptor
   close(client_a_fd);
-  close(client_b_fd);
   
   // Free memory
   free(buf);

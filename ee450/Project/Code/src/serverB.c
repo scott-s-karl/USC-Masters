@@ -87,8 +87,8 @@ int main(int argc, const char *argv[]){
 
   struct addrinfo svr_b_sock_prefs;
   struct addrinfo *svr_b_poss_cnntns;
-  struct sockaddr_storage main_addr;
-  socklen_t main_addr_len;
+  //  struct sockaddr_storage main_addr;
+  //socklen_t main_addr_len;
   
   // Setup cnntn
   set_sock_preferences(&svr_b_sock_prefs);

@@ -9,6 +9,7 @@
 #define CLIENTPORT "4141" // Client Port
 #define MAINPORT "25711" // Main Server TCP Port
 #define CLIENTBUFLEN 2048
+#define MSGLEN 2048
 
 // Local Functions
 void
@@ -104,6 +105,12 @@ recv_tcp_msg(char *buf,
   buf[num_bytes] = '\0';
 }
 
+int
+is_balance_error(char *buf){
+  return 0; 
+}
+
+
 int main(int argc, const char* argv[]){
   // Local Variables
   int getaddrinfo_result;
@@ -133,7 +140,7 @@ int main(int argc, const char* argv[]){
 
   // Define buffer for sending and receiving
   char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
-  char *client_buf = (char *)calloc(CLIENTBUFLEN, sizof *client_buf);
+  char *client_buf = (char *)calloc(CLIENTBUFLEN, sizeof *client_buf);
 
   // Switch based on arguments given
   switch(argc){
@@ -142,19 +149,21 @@ int main(int argc, const char* argv[]){
 
     // Send Data
     sprintf(msg, "%s", argv[1]);
-    send_balance_enquiry(client_sock_fd, MSGLEN, msg);
+    send_tcp_msg(client_sock_fd,
+		MSGLEN,
+		msg);
     printf("%s sent a balance enquiry request to the main server\n", msg);
 
     // Receive Data  
-    recv_enquiry_data(client_buf,
-		      CLIENTBUFLEN,
-		      client_sock_fd);
+    recv_tcp_msg(client_buf,
+		 CLIENTBUFLEN,
+		 client_sock_fd);
 
     // Print result - (Error/Success)
-    if(is_balance_enquiry_error){
+    if(is_balance_error(client_buf)){
       printf("Bad Username: %s. User not found in database.\n", argv[1]);
     }
-    printf("The current balance of %s is: xxx alicoins.", argv[1]);
+    printf("The current balance of %s is: xxx alicoins.\n", argv[1]);
     break;
     
   case 4: // TXCOINS ./clientA Martin Luke 100 
