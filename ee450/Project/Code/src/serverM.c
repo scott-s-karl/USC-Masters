@@ -1,10 +1,11 @@
-// Steven KarlA
+// Steven KarlAA
 // Main Server
 // ---------------
 
 // Include Statements
 #include "../header/serverM.h"
 #include <stdio.h>
+#include "time.h"
 
 // Define Macros
 #define SVRAPORT "21711" // Port # ServerA runs on
@@ -268,7 +269,6 @@ get_port(struct sockaddr *addr){
 	      INET6_ADDRSTRLEN);
     printf("Main Server: Got connection from %s\n", ip_addr);
     free(ip_addr);
-    printf("IPV6 IM HERE\n");
     return ((struct sockaddr_in6 *)&addr)->sin6_port;
   }
   else{ // Invalid
@@ -281,7 +281,6 @@ int
 receive_client_msg(char **buf,
 		   int buf_len,
 		   int sock_fd){
-  printf("Starting to receive from client\n");
   // Call recv to get the msg from the client fd
   int num_bytes;
   num_bytes = recv(sock_fd,
@@ -344,6 +343,7 @@ parse_client_msg(int *client_request_type,
   }
   else if(*client_request_type == 2){
     sscanf(buf, "%s %s %d", sender, receiver, transfer_amount);
+    strncpy(username, sender, BUFLEN);
   }
   else{
     printf("Bad Arguments\n");
@@ -355,17 +355,25 @@ gather_and_send_udp_msg(int sock_fd,
 			char *buf,
 			struct addrinfo *sva_cnntn,
 			char *username,
+			int balance,
 			char *sender,
+			int sender_balance,
 			char *receiver,
+			int receiver_balance,
 			int transfer_amount,
 			int client_request_type){
   // Pack based on request
   if(client_request_type == 1){
-    printf("Balance Request\n");
-    snprintf(buf, 1024, "%s", username);
+    snprintf(buf, BUFLEN, "%s %d", username, balance);
   }
   else if(client_request_type == 2){
-    printf("Transfer Request\n");
+    snprintf(buf,
+	     BUFLEN,
+	     "%s %d %s %d",
+	     sender,
+	     sender_balance,
+	     receiver,
+	     receiver_balance);
   }
   else{
     printf("Error: Invalid request type, gather and send udp\n");
@@ -416,6 +424,101 @@ prep_and_receive_udp_data(char **buf,
   return num_bytes;
 }
 
+void
+parse_and_store_udp(char *buf,
+		    char *username,
+		    int *user_found,
+		    int *balance,
+		    char *sender,
+		    int *sender_found,
+		    int *sender_balance,
+		    char *receiver,
+		    int *receiver_found,
+		    int *receiver_balance,
+		    int client_request_type){
+
+
+  // Check request type
+  if(client_request_type == 1){
+    sscanf(buf,
+	   "%s %d %d",
+	   username,
+	   balance,
+	   user_found);
+  }
+  else if(client_request_type == 2){
+    sscanf(buf,
+	   "%s %d %d %s %d %d",
+	   sender,
+	   sender_balance,
+	   sender_found,
+	   receiver,
+	   receiver_balance,
+	   receiver_found);
+  }
+  else{
+    perror("Error: Invalid request type\n");
+    exit(1);
+  }
+}
+
+int
+gather_and_send_to_client(char *buf,
+			  char *username,
+			  int user_found,
+			  int balance,
+			  char *sender,
+			  int sender_found,
+			  int sender_balance,
+			  char *receiver,
+			  int receiver_found,
+			  int receiver_balance,
+			  int client_request_type,
+			  int sock_fd){
+  // Check the type
+  if(client_request_type == 1){
+    snprintf(buf,
+	     BUFLEN,
+	     "%s %d %d",
+	     username,
+	     balance,
+	     user_found);
+  }
+  else if(client_request_type == 2){
+    snprintf(buf,
+	     BUFLEN,
+	     "%s %d %d %s %d %d",
+	     sender,
+	     sender_balance,
+	     sender_found,
+	     receiver,
+	     receiver_balance,
+	     receiver_found);
+  }
+  else{
+    perror("Error: Gather and send to client bad requst type\n");
+    exit(1);
+  }
+
+  // Send the buf
+  int num_bytes = send(sock_fd,
+		       buf,
+		       BUFLEN,
+		       0);
+  // Check the return
+  if(num_bytes == -1){
+    perror("Error: Failed to send data back to client\n");
+    close(sock_fd);
+    exit(1);
+  }
+  return num_bytes;
+}
+
+int
+get_random_server(){
+  srand(time(NULL));
+  return(rand() % 3);
+}
 
 // Main Function
 int main(int argc, const char *argv[]){
@@ -432,7 +535,6 @@ int main(int argc, const char *argv[]){
   int main_server_udp_fd; // File descriptor udp
   int getaddrinfo_result; // Function return code on error
 
-  
   struct addrinfo tcp_a_sock_prefs; // tcp connection prefs
   struct addrinfo *tcp_a_poss_cnntns;
   struct addrinfo tcp_b_sock_prefs; // tcp connection prefs
@@ -469,7 +571,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svb_sock_prefs;
   struct addrinfo *svb_cnntn;
   struct addrinfo *svb_poss_cnntns;
-  // int svb_port;
+  //int svb_port;
   set_udp_sock_preferences(&svb_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRBPORT,
@@ -482,7 +584,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svc_sock_prefs;
   struct addrinfo *svc_poss_cnntns;
   struct addrinfo *svc_cnntn;
-  //int svc_port;
+  //  int svc_port;
   set_udp_sock_preferences(&svc_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRCPORT,
@@ -546,11 +648,20 @@ int main(int argc, const char *argv[]){
 
   // Define the vars to store in when parsing requests
   int client_request_type;
-  char *username = (char *)calloc(NAMELEN, sizeof(*username));
-  char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
-  char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+  int balance = 1000;
   int transfer_amount;
 
+  char *username = (char *)calloc(NAMELEN, sizeof(*username));
+  int user_found;
+  
+  char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
+  int sender_balance = 1000;
+  int sender_found;
+
+  char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+  int receiver_balance = 1000;
+  int receiver_found;
+  
   // Connection Loop
   while(1){ // main accept() loop
     
@@ -576,7 +687,6 @@ int main(int argc, const char *argv[]){
 
       // Port/ Where connection came from
       client_a_port = get_port((struct sockaddr *)&client_a_addr);
-      printf("Client port: %d\n", client_a_port); 
 
       // From bgnet forking
       if(client_a_fd != -1){ // this is the child process
@@ -584,7 +694,8 @@ int main(int argc, const char *argv[]){
 	num_bytes_recv = receive_client_msg(&buf,
 					    BUFLEN,
 					    client_a_fd);
-	printf("Received Bytes: %d\n", num_bytes_recv);
+
+	printf("Buffer from client is: %s\n", buf);
 	// Parse the msg and fill the variables
 	parse_client_msg(&client_request_type,
 			 username,
@@ -594,13 +705,24 @@ int main(int argc, const char *argv[]){
 			 buf,
 			 client_a_port);
 
+	printf("Request Type: %d\n", client_request_type);
+	printf("Username: %s\n", username);
+	printf("Sender: %s\n", sender);
+	printf("Receiver: %s\n", receiver);
+	printf("Transfer Amount %d\n", transfer_amount);
+	
 	// Check the type of request and set the state
-	if(client_request_type > 0){ // Balance query
-	  printf("Balance Query\n");
+	if(client_request_type == 1){ // Balance query
+	  printf("The main server received input=%s from the client using TCP over port %d\n", username, client_a_port);
 	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
 	}
 	else if(client_request_type == 2){ // Transfer Query
-	  printf("Tranfer Query\n");
+	  printf("The main server received from %s to transfer %d coins to %s using TCP over port %d\n",
+		 sender,
+		 transfer_amount,
+		 receiver,
+		 client_a_port);
+	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
 	}
 	else{ // Invalid query
 	  printf("Invalid Query\n");
@@ -609,6 +731,23 @@ int main(int argc, const char *argv[]){
       break;
     case MAINTOCA: // Main to clientA
       printf("Case - Main to Client A\n");
+
+      // Prepare the buffer and send the data
+      num_bytes_sent = gather_and_send_to_client(buf,
+						 username,
+						 user_found,
+						 balance,
+						 sender,
+						 sender_balance,
+						 sender_found,
+						 receiver,
+						 receiver_balance,
+						 receiver_found,
+						 client_request_type,
+						 client_a_fd);
+      
+      // Update state to wait for connection from client
+      state = (num_bytes_sent != -1 ? ENDTRANS : state);
       break;
     case CBTOMAIN: // clientB to main
       printf("Case - Client B to Main\n");
@@ -628,21 +767,36 @@ int main(int argc, const char *argv[]){
 					       buf,
 					       sva_cnntn,
 					       username,
+					       balance,
 					       sender,
+					       sender_balance,
 					       receiver,
+					       receiver_balance,
 					       transfer_amount,
 					       client_request_type);
 
       // Wait to receive response from server A
       num_bytes_recv = prep_and_receive_udp_data(&buf,
-					     main_server_udp_fd,
-					     sva_cnntn);
+						 main_server_udp_fd,
+						 sva_cnntn);
+      
+      printf("Buffer returned from server A: %s\n", buf);
       
       // Parse and store the response from serverA
-      printf("buf returned: %s\n", buf);
+      parse_and_store_udp(buf,
+			  username,
+			  &user_found,
+			  &balance,
+			  sender,
+			  &sender_balance,
+			  &sender_found,
+			  receiver,
+			  &receiver_balance,
+			  &receiver_found,
+			  client_request_type);
       
       // Switch the state to Main to server B
-      state = (num_bytes_recv != -1 ? ENDTRANS : state);
+      state = (num_bytes_recv != -1 ? MAINTOCA : state);
       break;
     case MAINTOSB: // Main to Server B
       printf("Case - Main to Server B\n");
@@ -666,7 +820,10 @@ int main(int argc, const char *argv[]){
   
   // Free memory
   free(buf);
-  
+  free(username);
+  free(sender);
+  free(receiver);
+
   // Return from main
   return 0;
 }

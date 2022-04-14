@@ -8,7 +8,7 @@
 // Macros
 #define CLIENTPORT "4141" // Client Port
 #define MAINPORT "25711" // Main Server TCP Port
-#define CLIENTBUFLEN 2048
+#define BUFLEN 2048
 #define MSGLEN 2048
 
 // Local Functions
@@ -105,6 +105,41 @@ recv_tcp_msg(char *buf,
   buf[num_bytes] = '\0';
 }
 
+void
+parse_tcp_msg(char *username,
+	      int *user_found,
+	      int *balance,,
+	      int *user_found,
+	      int *balance,
+	      char *sender,,
+	      int *sender_balance,
+	      int *sender_found,
+	      char *receiver,
+	      int *receiver_balance,
+	      int *receiver_found,
+	      char *client_buf,
+	      int request_type){
+  // Check request type
+  if(request_type == 2){
+    sscanf(client_buf,
+	   "%s %d %d",
+	   username,
+	   balance,
+	   user_found);
+  }
+  else if(request_type == 4){
+    sscanf(client_buf,
+	   "%s %d %d %s %d %d",
+	   username,
+	   balance,
+	   user_found);
+  }
+  else{
+    perror("Error: Invalid request type\n");
+    exit(1);
+  }
+}
+
 int
 is_balance_error(char *buf){
   return 0; 
@@ -140,8 +175,14 @@ int main(int argc, const char* argv[]){
 
   // Define buffer for sending and receiving
   char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
-  char *client_buf = (char *)calloc(CLIENTBUFLEN, sizeof *client_buf);
-
+  char *client_buf = (char *)calloc(BUFLEN, sizeof *client_buf);
+  char *username = (char *)calloc(BUFLEN, sizeof *username);
+  char *sender = (char *)calloc(BUFLEN, sizeof *sender);
+  char *receiver = (char *)calloc(BUFLEN, sizeof *receiver);
+  int balance;
+  int user_found;
+  int transfer_amount;
+  
   // Switch based on arguments given
   switch(argc){
   case 2: // Check Wallet ./clientA Martin
@@ -156,19 +197,81 @@ int main(int argc, const char* argv[]){
 
     // Receive Data  
     recv_tcp_msg(client_buf,
-		 CLIENTBUFLEN,
+		 BUFLEN,
 		 client_sock_fd);
 
+    // Parse Received Data
+    printf("Parsing Received Message\n");
+    printf("Buf returned to client: %s\n", client_buf);
+    parse_tcp_msg(username,
+		  &user_found,
+		  &balance,
+		  sender,
+		  receiver,
+		  &transfer_amount,
+		  client_buf,
+		  argc);
+
+    printf("Username: %s\n", username);
+    printf("Balance: %d\n", balance);
+    printf("User Found %d\n", user_found);
+    
     // Print result - (Error/Success)
-    if(is_balance_error(client_buf)){
+    if(!user_found){
       printf("Bad Username: %s. User not found in database.\n", argv[1]);
     }
-    printf("The current balance of %s is: xxx alicoins.\n", argv[1]);
+    else{
+      printf("The current balance of %s is: %d alicoins.\n",
+	     username,
+	     balance);
+    }
+    
     break;
     
   case 4: // TXCOINS ./clientA Martin Luke 100 
+    // Case Print Statements
     printf("Action - TXCOINS\n");
-    printf("%s has requested to transfer %s coins to %s\n", argv[1],argv[3],argv[2]);  
+    printf("%s has requested to transfer %s coins to %s\n",
+	   argv[1],
+	   argv[3],
+	   argv[2]);
+
+    // Prepare message
+    snprintf(msg,
+	     MSGLEN,
+	     "%s %s %s",
+	     argv[1],
+	     argv[2],
+	     argv[3]);
+
+    // Send Message
+    send_tcp_msg(client_sock_fd,
+		 MSGLEN,
+		 msg);
+     
+    // Receive Response
+    recv_tcp_msg(client_buf,
+		 BUFLEN,
+		 client_sock_fd);
+
+    // Parse Response
+    printf("Buf returned to client: %s\n", client_buf);
+    parse_tcp_msg(username,
+		  &user_found,
+		  &balance,
+		  sender,
+		  sender_balance,
+		  sender_found,
+		  receiver,
+		  receiver_balance,
+		  receiver_found,
+		  client_buf,
+		  argc);
+
+    // Check return values
+    if(!sender_found || !receiver_found){
+      
+    }
     break;
     
   default: // All other argc values error out
@@ -183,7 +286,9 @@ int main(int argc, const char* argv[]){
   // Free memory
   free(msg);
   free(client_buf);
-
+  free(username);
+  free(sender);
+  free(receiver);
   // Return from main
   return 0;
 }
