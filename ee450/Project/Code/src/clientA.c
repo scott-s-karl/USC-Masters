@@ -107,11 +107,9 @@ recv_tcp_msg(char *buf,
 
 void
 parse_tcp_msg(char *username,
-	      int *user_found,
-	      int *balance,,
-	      int *user_found,
 	      int *balance,
-	      char *sender,,
+	      int *user_found,
+	      char *sender,
 	      int *sender_balance,
 	      int *sender_found,
 	      char *receiver,
@@ -130,9 +128,12 @@ parse_tcp_msg(char *username,
   else if(request_type == 4){
     sscanf(client_buf,
 	   "%s %d %d %s %d %d",
-	   username,
-	   balance,
-	   user_found);
+	   sender,
+	   sender_found,
+	   sender_balance,
+	   receiver,
+	   receiver_found,
+	   receiver_balance);
   }
   else{
     perror("Error: Invalid request type\n");
@@ -140,11 +141,39 @@ parse_tcp_msg(char *username,
   }
 }
 
-int
-is_balance_error(char *buf){
-  return 0; 
-}
+void
+check_transfer_return_values(char *sender,
+			     int sender_balance,
+			     int sender_found,
+			     char *receiver,
+			     int receiver_balance,
+			     int receiver_found,
+			     int transfer_amount){
 
+  // Check if sender doesn't have funds
+  if(sender_balance < transfer_amount){
+    printf("%s was unable to transfer %d alicoins to %s because of insufficient balance.\n",
+	   sender,
+	   transfer_amount,
+	   receiver);
+    printf("The current balance of %s is: %d alicoins.\n",
+	   sender,
+	   sender_balance);
+  }
+
+  // Check if sender or receiver isn't found
+  if(!sender_found && !receiver_found){
+    printf("Unable to proceed with the transaction as %s and %s are not part of the network.\n",
+	   sender,
+	   receiver);
+  }
+  else if(!sender_found){
+    printf("Unable to proceed with the transaction as %s is not part of the network.\n", sender);
+  }
+  else if(!receiver_found){
+    printf("Unable to proceed with the transaction as %s is not part of the network.\n", receiver);
+  }
+}
 
 int main(int argc, const char* argv[]){
   // Local Variables
@@ -177,10 +206,14 @@ int main(int argc, const char* argv[]){
   char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
   char *client_buf = (char *)calloc(BUFLEN, sizeof *client_buf);
   char *username = (char *)calloc(BUFLEN, sizeof *username);
-  char *sender = (char *)calloc(BUFLEN, sizeof *sender);
-  char *receiver = (char *)calloc(BUFLEN, sizeof *receiver);
-  int balance;
   int user_found;
+  int balance;
+  char *sender = (char *)calloc(BUFLEN, sizeof *sender);
+  int sender_found;
+  int sender_balance;
+  char *receiver = (char *)calloc(BUFLEN, sizeof *receiver);
+  int receiver_found;
+  int receiver_balance;
   int transfer_amount;
   
   // Switch based on arguments given
@@ -204,11 +237,14 @@ int main(int argc, const char* argv[]){
     printf("Parsing Received Message\n");
     printf("Buf returned to client: %s\n", client_buf);
     parse_tcp_msg(username,
-		  &user_found,
 		  &balance,
+		  &user_found,
 		  sender,
+		  &sender_balance,
+		  &sender_found,
 		  receiver,
-		  &transfer_amount,
+		  &receiver_balance,
+		  &receiver_found,
 		  client_buf,
 		  argc);
 
@@ -237,6 +273,7 @@ int main(int argc, const char* argv[]){
 	   argv[2]);
 
     // Prepare message
+    transfer_amount = atoi(argv[3]);
     snprintf(msg,
 	     MSGLEN,
 	     "%s %s %s",
@@ -257,21 +294,31 @@ int main(int argc, const char* argv[]){
     // Parse Response
     printf("Buf returned to client: %s\n", client_buf);
     parse_tcp_msg(username,
-		  &user_found,
 		  &balance,
+		  &user_found,
 		  sender,
-		  sender_balance,
-		  sender_found,
+		  &sender_balance,
+		  &sender_found,
 		  receiver,
-		  receiver_balance,
-		  receiver_found,
+		  &receiver_balance,
+		  &receiver_found,
 		  client_buf,
 		  argc);
-
+    printf("Sender: %s\n", sender);
+    printf("Sender Balance: %d\n", sender_balance);
+    printf("Sender Found: %d\n", sender_found);
+    printf("Receiver: %s\n", receiver);
+    printf("Receiver Balance: %d\n", receiver_balance);
+    printf("Receiver Found: %d\n", receiver_found);
+    
     // Check return values
-    if(!sender_found || !receiver_found){
-      
-    }
+    check_transfer_return_values(sender,
+				 sender_balance,
+				 sender_found,
+				 receiver,
+				 receiver_balance,
+				 receiver_found,
+				 transfer_amount);
     break;
     
   default: // All other argc values error out

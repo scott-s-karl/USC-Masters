@@ -318,7 +318,7 @@ get_request_type(char *buf,
     *client_request_type = 2;
   }
   else{
-    printf("Bad Reqeust\n");
+    printf("Bad Request\n");
     *client_request_type = 0;
   }
 }
@@ -361,7 +361,9 @@ gather_and_send_udp_msg(int sock_fd,
 			char *receiver,
 			int receiver_balance,
 			int transfer_amount,
-			int client_request_type){
+			int client_request_type,
+			int max_transaction_index,
+			int append_transaction){
   // Pack based on request
   if(client_request_type == 1){
     snprintf(buf, BUFLEN, "%s %d", username, balance);
@@ -369,11 +371,14 @@ gather_and_send_udp_msg(int sock_fd,
   else if(client_request_type == 2){
     snprintf(buf,
 	     BUFLEN,
-	     "%s %d %s %d",
+	     "%s %d %s %d %d %d %d",
 	     sender,
 	     sender_balance,
 	     receiver,
-	     receiver_balance);
+	     receiver_balance,
+	     transfer_amount,
+	     max_transaction_index,
+	     append_transaction);
   }
   else{
     printf("Error: Invalid request type, gather and send udp\n");
@@ -430,11 +435,12 @@ parse_and_store_udp(char *buf,
 		    int *user_found,
 		    int *balance,
 		    char *sender,
-		    int *sender_found,
 		    int *sender_balance,
+		    int *sender_found,
 		    char *receiver,
-		    int *receiver_found,
 		    int *receiver_balance,
+		    int *receiver_found,
+		    int *max_transaction_index,
 		    int client_request_type){
 
 
@@ -448,13 +454,14 @@ parse_and_store_udp(char *buf,
   }
   else if(client_request_type == 2){
     sscanf(buf,
-	   "%s %d %d %s %d %d",
+	   "%s %d %d %s %d %d %d",
 	   sender,
 	   sender_balance,
 	   sender_found,
 	   receiver,
 	   receiver_balance,
-	   receiver_found);
+	   receiver_found,
+	   max_transaction_index);
   }
   else{
     perror("Error: Invalid request type\n");
@@ -465,8 +472,8 @@ parse_and_store_udp(char *buf,
 int
 gather_and_send_to_client(char *buf,
 			  char *username,
-			  int user_found,
 			  int balance,
+			  int user_found,
 			  char *sender,
 			  int sender_found,
 			  int sender_balance,
@@ -518,6 +525,80 @@ int
 get_random_server(){
   srand(time(NULL));
   return(rand() % 3);
+}
+
+void
+clear_session_variables(int *client_request_type,
+			int *transfer_amount,
+			int *max_transaction_index,
+			int *append_transaction,
+			char *username,
+			int *balance,
+			int *user_found,
+			char *sender,
+			int *sender_balance,
+			int *sender_found,
+			char *receiver,
+			int *receiver_balance,
+			int *receiver_found){
+  // memset all pointers
+  memset(username, 0, BUFLEN*sizeof(*username));
+  memset(sender, 0, BUFLEN*sizeof(*sender));
+  memset(receiver, 0, BUFLEN*sizeof(*receiver));
+  
+  // Reset all balances
+  *balance = 1000;
+  *sender_balance = 1000;
+  *receiver_balance = 1000;
+  
+  // Reset all status variables
+  *user_found = 0;
+  *sender_found = 0;
+  *receiver_found = 0;
+  *append_transaction = 0;
+
+  // Reset miscelaneous leftover
+  *client_request_type = 999;
+  *max_transaction_index = 0;
+  *transfer_amount = 0;
+}
+
+int
+valid_transaction(char *sender,
+		  int sender_balance,
+		  int sender_found,
+		  char *receiver,
+		  int receiver_balance,
+		  int receiver_found,
+		  int transfer_amount){
+  // Check if sender doesn't have funds
+  if(sender_balance < transfer_amount){
+    printf("%s was unable to transfer %d alicoins to %s because of insufficient balance.\n",
+	   sender,
+	   transfer_amount,
+	   receiver);
+    printf("The current balance of %s is: %d alicoins.\n",
+	   sender,
+	   sender_balance);
+    return 0;
+  }
+
+  // Check if sender or receiver isn't found
+  if(!sender_found && !receiver_found){
+    printf("Unable to proceed with the transaction as %s and %s are not part of the network.\n",
+	   sender,
+	   receiver);
+    return 0;
+  }
+  else if(!sender_found){
+    printf("Unable to proceed with the transaction as %s is not part of the network.\n", sender);
+    return 0;
+  }
+  else if(!receiver_found){
+    printf("Unable to proceed with the transaction as %s is not part of the network.\n", receiver);
+    return 0;
+  }
+  return 1;
 }
 
 // Main Function
@@ -647,20 +728,22 @@ int main(int argc, const char *argv[]){
   int state = CATOMAIN;
 
   // Define the vars to store in when parsing requests
-  int client_request_type;
+  int client_request_type = 999;
   int balance = 1000;
-  int transfer_amount;
-
+  int transfer_amount = 0;
+  int max_transaction_index = 0;
+  int append_transaction = 0;
+  
   char *username = (char *)calloc(NAMELEN, sizeof(*username));
-  int user_found;
+  int user_found = 0;
   
   char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
   int sender_balance = 1000;
-  int sender_found;
+  int sender_found = 0;
 
   char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
   int receiver_balance = 1000;
-  int receiver_found;
+  int receiver_found = 0;
   
   // Connection Loop
   while(1){ // main accept() loop
@@ -712,11 +795,11 @@ int main(int argc, const char *argv[]){
 	printf("Transfer Amount %d\n", transfer_amount);
 	
 	// Check the type of request and set the state
-	if(client_request_type == 1){ // Balance query
+	if(client_request_type == 1){
 	  printf("The main server received input=%s from the client using TCP over port %d\n", username, client_a_port);
 	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
 	}
-	else if(client_request_type == 2){ // Transfer Query
+	else if(client_request_type == 2){
 	  printf("The main server received from %s to transfer %d coins to %s using TCP over port %d\n",
 		 sender,
 		 transfer_amount,
@@ -735,8 +818,8 @@ int main(int argc, const char *argv[]){
       // Prepare the buffer and send the data
       num_bytes_sent = gather_and_send_to_client(buf,
 						 username,
-						 user_found,
 						 balance,
+						 user_found,
 						 sender,
 						 sender_balance,
 						 sender_found,
@@ -745,9 +828,34 @@ int main(int argc, const char *argv[]){
 						 receiver_found,
 						 client_request_type,
 						 client_a_fd);
+
+      if(client_request_type == 1){
+	printf("The main server sent the current balance to client A.\n");
+      }
+      else if(client_request_type == 2){
+	printf("The main server sent the result of the transaction to client A.\n");
+      }
+      else{
+	printf("Other Case.\n");
+      }
+
+      // clear state variables for next use
+      clear_session_variables(&client_request_type,
+			      &transfer_amount,
+			      &max_transaction_index,
+			      &append_transaction,
+			      username,
+			      &balance,
+			      &user_found,
+			      sender,
+			      &sender_balance,
+			      &sender_found,
+			      receiver,
+			      &receiver_balance,
+			      &receiver_found);
       
       // Update state to wait for connection from client
-      state = (num_bytes_sent != -1 ? ENDTRANS : state);
+      state = (num_bytes_sent != -1 ? CATOMAIN : state);
       break;
     case CBTOMAIN: // clientB to main
       printf("Case - Client B to Main\n");
@@ -773,12 +881,23 @@ int main(int argc, const char *argv[]){
 					       receiver,
 					       receiver_balance,
 					       transfer_amount,
-					       client_request_type);
+					       client_request_type,
+					       max_transaction_index,
+					       append_transaction);
 
       // Wait to receive response from server A
       num_bytes_recv = prep_and_receive_udp_data(&buf,
 						 main_server_udp_fd,
 						 sva_cnntn);
+      if(client_request_type == 1){
+	printf("The main server received transactions from Server A using UDP over port %d.\n", sva_port);
+      }
+      else if(client_request_type == 2){
+	printf("The main server received the feedback from server A using UDP over port %d.\n", sva_port);
+      }
+      else{
+	printf("Other Case.\n");
+      }
       
       printf("Buffer returned from server A: %s\n", buf);
       
@@ -793,16 +912,52 @@ int main(int argc, const char *argv[]){
 			  receiver,
 			  &receiver_balance,
 			  &receiver_found,
+			  &max_transaction_index,
 			  client_request_type);
-      
-      // Switch the state to Main to server B
-      state = (num_bytes_recv != -1 ? MAINTOCA : state);
+
+      printf("Sender: %s\n", sender);
+      printf("Sender Balance: %d\n", sender_balance);
+      printf("Sender Found: %d\n", sender_found);
+      printf("Receiver: %s\n", receiver);
+      printf("Receiver Balance: %d\n", receiver_balance);
+      printf("Receiver Found: %d\n", receiver_found);
+      printf("Max Transaction Index %d\n", max_transaction_index);
+      // Check if the append flag is set
+      if(append_transaction){
+	state = (num_bytes_recv != -1 ? MAINTOCA : state);
+      }
+      else{
+	state = (num_bytes_recv != -1 ? MAINTOSC : state);
+      }
       break;
     case MAINTOSB: // Main to Server B
       printf("Case - Main to Server B\n");
       break;
     case MAINTOSC: // Main to Server C
       printf("Case - Main to Server C\n");
+
+      // Check if the transaciton is valid
+      if(valid_transaction(sender,
+			   sender_balance,
+			   sender_found,
+			   receiver,
+			   receiver_balance,
+			   receiver_found,
+			   transfer_amount)){
+	// Get the random server to add to
+	//int random_server = 0;
+
+	printf("Valid Transaction switch to server A to append");
+	// Switch to the random server	
+	state = MAINTOSA;
+
+	// Set the append transaction to true to write to random server
+	append_transaction = 1;
+      }
+      else{
+	// Switch back to client
+	state = MAINTOCA;
+      }
       break;
     case ENDTRANS:
     default: // All other cases error
