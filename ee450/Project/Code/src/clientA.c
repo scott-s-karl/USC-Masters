@@ -175,6 +175,25 @@ check_transfer_return_values(char *sender,
   }
 }
 
+int
+get_request_type(int argc, const char* argv[]){
+
+  // Check if the arg is TXLIST
+  if(strncmp(argv[1], "TXLIST", 256) == 0){
+      return 3;
+  }
+  // Check the count
+  if(argc == 2){
+    return 1;
+  }
+  else if(argc == 4){
+    return 2;
+  }
+  else{
+    return 999;
+  }
+}
+
 int main(int argc, const char* argv[]){
   // Local Variables
   int getaddrinfo_result;
@@ -215,10 +234,14 @@ int main(int argc, const char* argv[]){
   int receiver_found;
   int receiver_balance;
   int transfer_amount;
+
+  // Get the type of action the user is attempting to preform
+  int request_type = get_request_type(argc, argv);
+  printf("Request: %d\n", request_type);
   
   // Switch based on arguments given
-  switch(argc){
-  case 2: // Check Wallet ./clientA Martin
+  switch(request_type){
+  case 1: // Check Wallet ./clientA Martin
     printf("Action - CHECK WALLET\n");
 
     // Send Data
@@ -264,7 +287,7 @@ int main(int argc, const char* argv[]){
     
     break;
     
-  case 4: // TXCOINS ./clientA Martin Luke 100 
+  case 2: // TXCOINS ./clientA Martin Luke 100 
     // Case Print Statements
     printf("Action - TXCOINS\n");
     printf("%s has requested to transfer %s coins to %s\n",
@@ -319,6 +342,26 @@ int main(int argc, const char* argv[]){
 				 receiver_balance,
 				 receiver_found,
 				 transfer_amount);
+    break;
+
+  case 3: // TXLIST
+    printf("Transaction list comparison\n");
+    // Send Data
+    sprintf(msg, "%s", argv[1]);
+    send_tcp_msg(client_sock_fd,
+		 MSGLEN,
+		 msg);
+    printf("TXLIST request was sent to the main server.\n");
+    // Receive Data  
+    recv_tcp_msg(client_buf,
+		 BUFLEN,
+		 client_sock_fd);
+
+    // Parse Received Data
+    printf("Buf returned to client: %s\n", client_buf);
+ 
+    // Print result - (Error/Success)
+    printf("Done Getting transaction list look in main server\n");
     break;
     
   default: // All other argc values error out

@@ -17,15 +17,6 @@
 
 #define BACKLOG 10 // max len(pending connections queue) for listening
 #define BUFLEN 2048
-#define NAMELEN 2048
-
-struct Requests{
-  char *username;
-  char *sender;
-  char *receiver;
-  int transfer_amount;
-  int request_type;
-}request;
 
 // Local Functions
 /*
@@ -310,8 +301,10 @@ get_request_type(char *buf,
       spaces++;
     }
   }
-  // Set request type based on space count
-  if(spaces == 0){
+  if(strncmp(buf, "TXLIST", 256) == 0){
+    *client_request_type = 3;
+  }
+  else if(spaces == 0){
     *client_request_type = 1;
   }
   else if(spaces == 2){
@@ -344,6 +337,9 @@ parse_client_msg(int *client_request_type,
   else if(*client_request_type == 2){
     sscanf(buf, "%s %s %d", sender, receiver, transfer_amount);
     strncpy(username, sender, BUFLEN);
+  }
+  else if(*client_request_type == 3){
+    return;
   }
   else{
     printf("Bad Arguments\n");
@@ -402,11 +398,111 @@ gather_and_send_udp_msg(int sock_fd,
 }
 
 int
+gather_and_send_list_request(char *buf,
+			     struct addrinfo *cnntn,
+			     int type,
+			     int sock_fd){
+  // Load the buffer
+  snprintf(buf, BUFLEN, "%d", type);
+
+  // Send the data
+  int num_bytes = sendto(sock_fd,
+			 buf,
+			 BUFLEN,
+			 0,
+			 cnntn->ai_addr,
+			 cnntn->ai_addrlen);
+  // Check return
+  if(num_bytes == -1){
+    perror("Error: Failed to send bytes to Server A\n");
+    exit(1);
+  }
+  return num_bytes;
+}
+
+
+void
+add_transaction_to_list(TxList *txlist,
+			char *new_tx){
+  // Setup local variables for storing
+  int new_tx_index;
+  int current_tx_index;
+  TxListNode *current = calloc(1, sizeof(TxListNode));
+  TxListNode *prev = calloc(1, sizeof(TxListNode));
+  TxListNode *new = calloc(1, sizeof(TxListNode));
+  current->data = calloc(BUFLEN, sizeof(char));
+  prev->data = calloc(BUFLEN, sizeof(char));
+  new->data = calloc(BUFLEN, sizeof(char));
+  strncpy(new->data, new_tx, BUFLEN);
+  new->next = NULL;
+  prev = txlist->head;
+  
+  // Get the index
+  sscanf(new->data, "%d", &new_tx_index);
+
+  // Loop through the current list
+  for(current = txlist->head; current != NULL; current = current->next){
+    
+    // Get the current transaction index
+    sscanf(current->data, "%d", &current_tx_index);
+   
+    // If were at the first node
+    if(new_tx_index < current_tx_index){
+      // check if its the head
+      if(current == txlist->head){
+	// Insert
+	new->next = current;
+	txlist->head = new;
+	break;
+      } 
+      else{
+	new->next = prev->next;
+	prev->next = new;
+	break;
+      }
+    }
+    if(current->next == NULL){
+	current->next = new;
+	break;
+      }
+    prev = current;
+  }
+}
+
+void
+collect_backend_transactions(TxList *txlist,
+			     int sock_fd,
+			     struct addrinfo *cnntn){
+  // Define buffer to store transactions
+  char *tx = (char *)calloc(BUFLEN, sizeof(*tx));
+  
+  // Loop until buffer returns done
+  while(1){
+    prep_and_receive_udp_data(&tx,
+			      sock_fd,
+			      cnntn);
+
+    printf("Transaction Received: %s\n", tx);
+    // Check for end
+    if(strncmp(tx, "Done", BUFLEN) == 0){
+      printf("Found the ending message breaking out\n");
+      break;
+    }
+    // Add to tx list
+    add_transaction_to_list(txlist,
+			    tx);
+  }
+  // Free mem
+  free(tx);
+  printf("Done collecting transactions\n");
+}
+
+int
 prep_and_receive_udp_data(char **buf,
 			  int sock_fd,
 			  struct addrinfo *back_svr_cnntn){
   // Clear the buffer
-  memset(*buf, 0, BUFLEN * sizeof(*buf));
+  memset(*buf, 0, BUFLEN * sizeof(**buf));
   
   // Receive from backend server
   int num_bytes = recvfrom(sock_fd,
@@ -601,6 +697,71 @@ valid_transaction(char *sender,
   return 1;
 }
 
+void
+open_output_file(FILE **fout){
+  *fout = fopen("servers/alichain.txt","w+");
+  if(*fout == NULL){
+    perror("ERROR: Could not open output file for writing.\n");
+    exit(1);
+  }
+}
+
+void
+close_output_file(FILE **fout){
+  int ret_val = fclose(*fout);
+  if(ret_val != 0){
+    perror("ERROR: Could not close output file.\n");
+    exit(1);
+  }
+}
+
+void
+output_txlist(TxList *txlist){
+  // Define local variables
+  TxListNode *current;
+  FILE *fout;
+  
+  // Open a file w+
+  open_output_file(&fout);
+  
+  // Loop through the txlist
+  for(current = txlist->head;
+      current != NULL;
+      current = current->next){
+    // Print to the file
+    fprintf(fout,
+	     "%s",
+	     current->data);
+  }
+  // Close the file
+  close_output_file(&fout);
+}
+
+int
+gather_and_send_txlist_completion(char *buf,
+				  int sock_fd){
+  // Gather message
+  strncpy(buf, "Done", BUFLEN);
+  
+  // Send the buf
+  int num_bytes = send(sock_fd,
+		       buf,
+		       BUFLEN,
+		       0);
+  // Check the return
+  if(num_bytes == -1){
+    perror("Error: Failed to send data back to client\n");
+    close(sock_fd);
+    exit(1);
+  }
+  return num_bytes;
+}
+
+void
+update_found_status(int *found, int tmp){
+  *found+=tmp;  
+}
+
 // Main Function
 int main(int argc, const char *argv[]){
 
@@ -652,7 +813,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svb_sock_prefs;
   struct addrinfo *svb_cnntn;
   struct addrinfo *svb_poss_cnntns;
-  //int svb_port;
+  int svb_port;
   set_udp_sock_preferences(&svb_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRBPORT,
@@ -665,7 +826,7 @@ int main(int argc, const char *argv[]){
   struct addrinfo svc_sock_prefs;
   struct addrinfo *svc_poss_cnntns;
   struct addrinfo *svc_cnntn;
-  //  int svc_port;
+  int svc_port;
   set_udp_sock_preferences(&svc_sock_prefs);
   getaddrinfo_result = getaddrinfo(NULL,
 				   SVRCPORT,
@@ -734,16 +895,24 @@ int main(int argc, const char *argv[]){
   int max_transaction_index = 0;
   int append_transaction = 0;
   
-  char *username = (char *)calloc(NAMELEN, sizeof(*username));
+  char *username = (char *)calloc(BUFLEN, sizeof(*username));
   int user_found = 0;
+  int user_found_tmp = 0;
   
-  char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
+  char *sender = (char *)calloc(BUFLEN, sizeof(*sender));
   int sender_balance = 1000;
   int sender_found = 0;
+  int sender_found_tmp = 0;
 
-  char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+  char *receiver = (char *)calloc(BUFLEN, sizeof(*receiver));
   int receiver_balance = 1000;
   int receiver_found = 0;
+  int receiver_found_tmp = 0;
+
+  TxList txlist;
+  txlist.head = calloc(1, sizeof(TxListNode));
+  txlist.head->data = calloc(256, sizeof(char));
+  txlist.head->next = NULL;
   
   // Connection Loop
   while(1){ // main accept() loop
@@ -807,6 +976,10 @@ int main(int argc, const char *argv[]){
 		 client_a_port);
 	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
 	}
+	else if(client_request_type == 3){
+	   printf("Main server received a TXLIST reqeust\n");
+	   state = (num_bytes_recv != -1 ? MAINTOSA : state);
+	}
 	else{ // Invalid query
 	  printf("Invalid Query\n");
 	}	
@@ -814,29 +987,32 @@ int main(int argc, const char *argv[]){
       break;
     case MAINTOCA: // Main to clientA
       printf("Case - Main to Client A\n");
-
-      // Prepare the buffer and send the data
-      num_bytes_sent = gather_and_send_to_client(buf,
-						 username,
-						 balance,
-						 user_found,
-						 sender,
-						 sender_balance,
-						 sender_found,
-						 receiver,
-						 receiver_balance,
-						 receiver_found,
-						 client_request_type,
-						 client_a_fd);
-
-      if(client_request_type == 1){
-	printf("The main server sent the current balance to client A.\n");
-      }
-      else if(client_request_type == 2){
-	printf("The main server sent the result of the transaction to client A.\n");
+      if(client_request_type == 3){
+	// Gather and send
+	num_bytes_sent = gather_and_send_txlist_completion(buf,
+							   client_a_fd);
+	printf("The main server sent finished sending txlist confirmation to client.\n");
       }
       else{
-	printf("Other Case.\n");
+	// Prepare the buffer and send the data
+	num_bytes_sent = gather_and_send_to_client(buf,
+						   username,
+						   balance,
+						   user_found,
+						   sender,
+						   sender_balance,
+						   sender_found,
+						   receiver,
+						   receiver_balance,
+						   receiver_found,
+						   client_request_type,
+						   client_a_fd);
+	if(client_request_type == 1){
+	  printf("The main server sent the current balance to client A.\n");
+	}
+	else if(client_request_type == 2){
+	  printf("The main server sent the result of the transaction to client A.\n");
+	}
       }
 
       // clear state variables for next use
@@ -870,29 +1046,87 @@ int main(int argc, const char *argv[]){
       sva_port = get_port((struct sockaddr *)sva_cnntn->ai_addr);
       
       // Check the type of request to send
-      printf("The main server sent a request to server A\n");
-      num_bytes_sent = gather_and_send_udp_msg(main_server_udp_fd,
-					       buf,
-					       sva_cnntn,
-					       username,
-					       balance,
-					       sender,
-					       sender_balance,
-					       receiver,
-					       receiver_balance,
-					       transfer_amount,
-					       client_request_type,
-					       max_transaction_index,
-					       append_transaction);
+      if(client_request_type != 3){
+	num_bytes_sent = gather_and_send_udp_msg(main_server_udp_fd,
+						 buf,
+						 sva_cnntn,
+						 username,
+						 balance,
+						 sender,
+						 sender_balance,
+						 receiver,
+						 receiver_balance,
+						 transfer_amount,
+						 client_request_type,
+						 max_transaction_index,
+						 append_transaction);
 
-      // Wait to receive response from server A
-      num_bytes_recv = prep_and_receive_udp_data(&buf,
-						 main_server_udp_fd,
-						 sva_cnntn);
+	printf("The main server sent a request to server A\n");
+	
+	// Wait to receive response from server A
+	num_bytes_recv = prep_and_receive_udp_data(&buf,
+						   main_server_udp_fd,
+						   sva_cnntn);
+
+	// Parse and store the response from serverA
+	parse_and_store_udp(buf,
+			    username,
+			    &user_found_tmp,
+			    &balance,
+			    sender,
+			    &sender_balance,
+			    &sender_found_tmp,
+			    receiver,
+			    &receiver_balance,
+			    &receiver_found_tmp,
+			    &max_transaction_index,
+			    client_request_type);
+      
+	printf("Sender: %s\n", sender);
+	printf("Sender Balance: %d\n", sender_balance);
+	printf("Sender Found: %d\n", sender_found);
+	printf("Receiver: %s\n", receiver);
+	printf("Receiver Balance: %d\n", receiver_balance);
+	printf("Receiver Found: %d\n", receiver_found);
+	printf("Max Transaction Index %d\n", max_transaction_index);
+
+	update_found_status(&user_found,
+			    user_found_tmp);
+	update_found_status(&sender_found,
+			    sender_found_tmp);
+	update_found_status(&receiver_found,
+			    receiver_found_tmp);
+	
+	// Check if the append flag is set
+	if(append_transaction){
+	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	}
+	else{
+	  state = (num_bytes_recv != -1 ? MAINTOSB : state);
+	}
+      }
+      else{
+	// Gather and sender the udp message to server A
+	num_bytes_sent = gather_and_send_list_request(buf,
+						      sva_cnntn,
+						      client_request_type,
+						      main_server_udp_fd);
+	printf("The main server sent a request to Server A\n");
+
+	// Sit and wait in a while loop until all data is collected
+	collect_backend_transactions(&txlist,
+				     main_server_udp_fd,
+				     sva_cnntn);
+	state = MAINTOSB;
+      }
+      
       if(client_request_type == 1){
 	printf("The main server received transactions from Server A using UDP over port %d.\n", sva_port);
       }
       else if(client_request_type == 2){
+	printf("The main server received the feedback from server A using UDP over port %d.\n", sva_port);
+      }
+      else if(client_request_type == 3){
 	printf("The main server received the feedback from server A using UDP over port %d.\n", sva_port);
       }
       else{
@@ -900,63 +1134,239 @@ int main(int argc, const char *argv[]){
       }
       
       printf("Buffer returned from server A: %s\n", buf);
-      
-      // Parse and store the response from serverA
-      parse_and_store_udp(buf,
-			  username,
-			  &user_found,
-			  &balance,
-			  sender,
-			  &sender_balance,
-			  &sender_found,
-			  receiver,
-			  &receiver_balance,
-			  &receiver_found,
-			  &max_transaction_index,
-			  client_request_type);
-
-      printf("Sender: %s\n", sender);
-      printf("Sender Balance: %d\n", sender_balance);
-      printf("Sender Found: %d\n", sender_found);
-      printf("Receiver: %s\n", receiver);
-      printf("Receiver Balance: %d\n", receiver_balance);
-      printf("Receiver Found: %d\n", receiver_found);
-      printf("Max Transaction Index %d\n", max_transaction_index);
-      // Check if the append flag is set
-      if(append_transaction){
-	state = (num_bytes_recv != -1 ? MAINTOCA : state);
-      }
-      else{
-	state = (num_bytes_recv != -1 ? MAINTOSC : state);
-      }
       break;
+  
     case MAINTOSB: // Main to Server B
       printf("Case - Main to Server B\n");
+
+      // Get the port server A
+      svb_port = get_port((struct sockaddr *)svb_cnntn->ai_addr);
+      
+      // Check the type of request to send
+      if(client_request_type != 3){
+	num_bytes_sent = gather_and_send_udp_msg(main_server_udp_fd,
+						 buf,
+						 svb_cnntn,
+						 username,
+						 balance,
+						 sender,
+						 sender_balance,
+						 receiver,
+						 receiver_balance,
+						 transfer_amount,
+						 client_request_type,
+						 max_transaction_index,
+						 append_transaction);
+
+	printf("The main server sent a request to Server B\n");
+	
+	// Wait to receive response from Server B
+	num_bytes_recv = prep_and_receive_udp_data(&buf,
+						   main_server_udp_fd,
+						   svb_cnntn);
+
+	// Parse and store the response from serverA
+	parse_and_store_udp(buf,
+			    username,
+			    &user_found_tmp,
+			    &balance,
+			    sender,
+			    &sender_balance,
+			    &sender_found_tmp,
+			    receiver,
+			    &receiver_balance,
+			    &receiver_found_tmp,
+			    &max_transaction_index,
+			    client_request_type);
+      
+	printf("Sender: %s\n", sender);
+	printf("Sender Balance: %d\n", sender_balance);
+	printf("Sender Found: %d\n", sender_found);
+	printf("Receiver: %s\n", receiver);
+	printf("Receiver Balance: %d\n", receiver_balance);
+	printf("Receiver Found: %d\n", receiver_found);
+	printf("Max Transaction Index %d\n", max_transaction_index);
+
+	update_found_status(&user_found,
+			    user_found_tmp);
+	update_found_status(&sender_found,
+			    sender_found_tmp);
+	update_found_status(&receiver_found,
+			    receiver_found_tmp);
+	
+	// Check if the append flag is set
+	if(append_transaction){
+	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	}
+	else{
+	  state = (num_bytes_recv != -1 ? MAINTOSC : state);
+	}
+      }
+      else{
+	// Gather and sender the udp message to Server B
+	num_bytes_sent = gather_and_send_list_request(buf,
+						      svb_cnntn,
+						      client_request_type,
+						      main_server_udp_fd);
+	printf("The main server sent a request to server B\n");
+
+	// Sit and wait in a while loop until all data is collected
+	collect_backend_transactions(&txlist,
+				     main_server_udp_fd,
+				     svb_cnntn);
+	state = MAINTOSC;
+      }
+      
+      if(client_request_type == 1){
+	printf("The main server received transactions from Server B using UDP over port %d.\n", svb_port);
+      }
+      else if(client_request_type == 2){
+	printf("The main server received the feedback from Server B using UDP over port %d.\n", svb_port);
+      }
+      else if(client_request_type == 3){
+	printf("The main server received the feedback from Server B using UDP over port %d.\n", svb_port);
+      }
+      else{
+	printf("Other Case.\n");
+      }
+      
+      printf("Buffer returned from server B: %s\n", buf);
       break;
+      
     case MAINTOSC: // Main to Server C
       printf("Case - Main to Server C\n");
 
-      // Check if the transaciton is valid
-      if(valid_transaction(sender,
-			   sender_balance,
-			   sender_found,
-			   receiver,
-			   receiver_balance,
-			   receiver_found,
-			   transfer_amount)){
-	// Get the random server to add to
-	//int random_server = 0;
+      // Get the port server C
+      svc_port = get_port((struct sockaddr *)svc_cnntn->ai_addr);
+      
+      // Check the type of request to send
+      if(client_request_type != 3){
+	num_bytes_sent = gather_and_send_udp_msg(main_server_udp_fd,
+						 buf,
+						 svc_cnntn,
+						 username,
+						 balance,
+						 sender,
+						 sender_balance,
+						 receiver,
+						 receiver_balance,
+						 transfer_amount,
+						 client_request_type,
+						 max_transaction_index,
+						 append_transaction);
 
-	printf("Valid Transaction switch to server A to append");
-	// Switch to the random server	
-	state = MAINTOSA;
+	printf("The main server sent a request to Server C\n");
+	
+	// Wait to receive response from server A
+	num_bytes_recv = prep_and_receive_udp_data(&buf,
+						   main_server_udp_fd,
+						   svc_cnntn);
 
-	// Set the append transaction to true to write to random server
-	append_transaction = 1;
+	// Parse and store the response from serverA
+	parse_and_store_udp(buf,
+			    username,
+			    &user_found_tmp,
+			    &balance,
+			    sender,
+			    &sender_balance,
+			    &sender_found_tmp,
+			    receiver,
+			    &receiver_balance,
+			    &receiver_found_tmp,
+			    &max_transaction_index,
+			    client_request_type);
+      
+	printf("Sender: %s\n", sender);
+	printf("Sender Balance: %d\n", sender_balance);
+	printf("Sender Found: %d\n", sender_found);
+	printf("Receiver: %s\n", receiver);
+	printf("Receiver Balance: %d\n", receiver_balance);
+	printf("Receiver Found: %d\n", receiver_found);
+	printf("Max Transaction Index %d\n", max_transaction_index);
+
+	update_found_status(&user_found,
+			    user_found_tmp);
+	update_found_status(&sender_found,
+			    sender_found_tmp);
+	update_found_status(&receiver_found,
+			    receiver_found_tmp);
+	
+	// Check if the append flag is set
+	if(append_transaction){
+	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	}
       }
       else{
-	// Switch back to client
+	// Gather and sender the udp message to Server C
+	num_bytes_sent = gather_and_send_list_request(buf,
+						      svc_cnntn,
+						      client_request_type,
+						      main_server_udp_fd);
+	printf("The main server sent a request to Server C\n");
+
+	// Sit and wait in a while loop until all data is collected
+	collect_backend_transactions(&txlist,
+				     main_server_udp_fd,
+				     svc_cnntn);
+      }
+      // Print out the buffer
+      printf("Buffer returned from server C: %s\n", buf);
+      
+      if(client_request_type == 1){
+	printf("The Main Server received transactions from Server C using UDP over port %d.\n", svc_port);
 	state = MAINTOCA;
+	break;
+      }
+      else if(client_request_type == 2){
+	printf("The Main Server received the feedback from Server C using UDP over port %d.\n", svc_port);
+	// Check if the transaciton is valid
+	if(valid_transaction(sender,
+			     sender_balance,
+			     sender_found,
+			     receiver,
+			     receiver_balance,
+			     receiver_found,
+			     transfer_amount)){
+	
+	  printf("Valid Transaction\n");
+	
+	  // Get the random server to add to
+	  int random_server = get_random_server();
+	  printf("Random server is: %d\n", random_server);
+	
+	  // Switch to the random server
+	  if(random_server == 0){
+	    printf("Random Server is A\n");
+	    state = MAINTOSA;
+	  }
+	  else if(random_server == 1){
+	    printf("Random Server is B\n");
+	    state = MAINTOSB;
+	  }
+	  else{
+	    printf("Random Server is C\n");
+	    state = MAINTOSC;
+	  }
+	  
+	  // Set the append transaction to true to write to random server
+	  append_transaction = 1;
+	}
+	else if(client_request_type == 3){
+	  printf("The Main Server received the feedback from Server C using UDP over port %d.\n", svc_port);
+	  
+	  printf("Outputting File of transactions\n");
+	  
+	  // Write the transaction list to file
+	  output_txlist(&txlist);
+
+	  // Switch state to return to main
+	  state = MAINTOCA;
+	  break;
+	}
+	else{
+	  printf("Other Case.\n");
+	  state = MAINTOCA;
+	}		
       }
       break;
     case ENDTRANS:

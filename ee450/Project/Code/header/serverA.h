@@ -118,3 +118,22 @@ clear_session_variables(char *buf,
 
 void
 rewind_server_file(FILE **fin);
+
+void
+append_transaction_to_server_file(FILE **fin,
+				  int max_transaction_index,
+				  char *sender,
+				  char *receiver,
+				  int transfer_amount);
+
+void
+gather_and_send_transactions(FILE **fin,
+			     int sock_fd,
+			     struct sockaddr_storage *addr,
+			     socklen_t addr_len);
+
+int
+send_simple_udp(int sock_fd,
+		char *buf,
+		struct sockaddr *addr,
+		socklen_t addr_len);

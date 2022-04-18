@@ -176,6 +176,25 @@ check_transfer_return_values(char *sender,
   }
 }
 
+int
+get_request_type(int argc, const char* argv[]){
+
+  // Check if the arg is TXLIST
+  if(strncmp(argv[1], "TXLIST", 256) == 0){
+      return 3;
+  }
+  // Check the count
+  if(argc == 1){
+    return 1;
+  }
+  else if(argc == 4){
+    return 2;
+  }
+  else{
+    return 999;
+  }
+}
+
 int main(int argc, const char* argv[]){
   // Local Variables
   int getaddrinfo_result;
@@ -203,20 +222,167 @@ int main(int argc, const char* argv[]){
   // Boot Up Message
   printf("The client B is up and running.\n");
 
-    // Switch based on arguments given
-  switch(argc){
-  case 2: // Check Wallet ./clientA Martin
+   // Define buffer for sending and receiving
+  char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
+  char *client_buf = (char *)calloc(BUFLEN, sizeof *client_buf);
+  char *username = (char *)calloc(BUFLEN, sizeof *username);
+  int user_found;
+  int balance;
+  char *sender = (char *)calloc(BUFLEN, sizeof *sender);
+  int sender_found;
+  int sender_balance;
+  char *receiver = (char *)calloc(BUFLEN, sizeof *receiver);
+  int receiver_found;
+  int receiver_balance;
+  int transfer_amount;
+
+  // Get the type of action the user is attempting to preform
+  int request_type = get_request_type(argc, argv);
+  printf("Request: %d\n", request_type);
+  
+  // Switch based on arguments given
+  switch(request_type){
+  case 1: // Check Wallet ./clientA Martin
     printf("Action - CHECK WALLET\n");
-    printf("User: %s\n", argv[1]);
+
+    // Send Data
+    sprintf(msg, "%s", argv[1]);
+    send_tcp_msg(client_sock_fd,
+		MSGLEN,
+		msg);
+    printf("%s sent a balance enquiry request to the main server\n", msg);
+
+    // Receive Data  
+    recv_tcp_msg(client_buf,
+		 BUFLEN,
+		 client_sock_fd);
+
+    // Parse Received Data
+    printf("Parsing Received Message\n");
+    printf("Buf returned to client: %s\n", client_buf);
+    parse_tcp_msg(username,
+		  &balance,
+		  &user_found,
+		  sender,
+		  &sender_balance,
+		  &sender_found,
+		  receiver,
+		  &receiver_balance,
+		  &receiver_found,
+		  client_buf,
+		  argc);
+
+    printf("Username: %s\n", username);
+    printf("Balance: %d\n", balance);
+    printf("User Found %d\n", user_found);
+    
+    // Print result - (Error/Success)
+    if(!user_found){
+      printf("Bad Username: %s. User not found in database.\n", argv[1]);
+    }
+    else{
+      printf("The current balance of %s is: %d alicoins.\n",
+	     username,
+	     balance);
+    }
+    
     break;
-  case 4: // TXCOINS ./clientA Martin Luke 100 
+    
+  case 2: // TXCOINS ./clientA Martin Luke 100 
+    // Case Print Statements
     printf("Action - TXCOINS\n");
-    printf("Sender: %s\n", argv[1]);
-    printf("Receiver: %s\n", argv[2]);
-    printf("Amount: %s\n", argv[3]);
+    printf("%s has requested to transfer %s coins to %s\n",
+	   argv[1],
+	   argv[3],
+	   argv[2]);
+
+    // Prepare message
+    transfer_amount = atoi(argv[3]);
+    snprintf(msg,
+	     MSGLEN,
+	     "%s %s %s",
+	     argv[1],
+	     argv[2],
+	     argv[3]);
+
+    // Send Message
+    send_tcp_msg(client_sock_fd,
+		 MSGLEN,
+		 msg);
+     
+    // Receive Response
+    recv_tcp_msg(client_buf,
+		 BUFLEN,
+		 client_sock_fd);
+
+    // Parse Response
+    printf("Buf returned to client: %s\n", client_buf);
+    parse_tcp_msg(username,
+		  &balance,
+		  &user_found,
+		  sender,
+		  &sender_balance,
+		  &sender_found,
+		  receiver,
+		  &receiver_balance,
+		  &receiver_found,
+		  client_buf,
+		  argc);
+    printf("Sender: %s\n", sender);
+    printf("Sender Balance: %d\n", sender_balance);
+    printf("Sender Found: %d\n", sender_found);
+    printf("Receiver: %s\n", receiver);
+    printf("Receiver Balance: %d\n", receiver_balance);
+    printf("Receiver Found: %d\n", receiver_found);
+    
+    // Check return values
+    check_transfer_return_values(sender,
+				 sender_balance,
+				 sender_found,
+				 receiver,
+				 receiver_balance,
+				 receiver_found,
+				 transfer_amount);
     break;
+
+  case 3: // TXLIST
+    printf("Transaction list comparison\n");
+    // Send Data
+    sprintf(msg, "%s", argv[1]);
+    send_tcp_msg(client_sock_fd,
+		 MSGLEN,
+		 msg);
+    printf("TXLIST request was sent to the main server.\n");
+    // Receive Data  
+    recv_tcp_msg(client_buf,
+		 BUFLEN,
+		 client_sock_fd);
+
+    // Parse Received Data
+    printf("Buf returned to client: %s\n", client_buf);
+ 
+    // Print result - (Error/Success)
+    printf("Done Getting transaction list look in main server\n");
+    break;
+    
   default: // All other argc values error out
     fprintf(stderr, "Invlaid number of arguments\n");
     break;
-  }
+    
+  }// End Switch
+  
+  // Close descriptor
+  close(client_sock_fd);
+
+  // Free memory
+  free(msg);
+  free(client_buf);
+  free(username);
+  free(sender);
+  free(receiver);
+
+  // Return from main
+  return 0;
 }
+
+ 

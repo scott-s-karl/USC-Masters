@@ -27,3 +27,9 @@ set_sock_preferences(struct addrinfo *sock_prefs);
 
 void
 create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns);
+
+void
+send_balance_enquiry(int sock_fd, int msg_len, char *user);
+
+void
+recv_balance_enquiry(char *buf, int buf_len, int sock_fd);

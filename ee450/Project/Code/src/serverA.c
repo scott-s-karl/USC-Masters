@@ -8,7 +8,6 @@
 // Macros
 #define SRVRAPORT "21711" // Port # ServerA runs on
 #define BUFLEN 2048
-#define NAMELEN 2048
 
 // Local Functions
 void
@@ -121,6 +120,10 @@ get_request_type(char *buf,
   else if(spaces == 6){
     *client_request_type = 2;
   }
+  else if(spaces == 0){
+    printf("Type 3 Request - get type\n");
+    *client_request_type = 3;
+  }
   else{
     printf("Bad Reqeust\n");
     *client_request_type = 0;
@@ -159,6 +162,9 @@ parse_udp_msg(int *client_request_type,
 	   transfer_amount,
 	   max_transaction_index,
 	   append_transaction);
+  }
+  else if(*client_request_type == 3){
+    return;
   }
   else{
     perror("Error: Bad Arguments\n");
@@ -224,8 +230,8 @@ prep_and_send_udp_data(int sock_fd,
 
 void
 open_transaction_file(FILE **fin){
-  
-  *fin = fopen("./../servers/block1.txt", "r+");
+
+  *fin = fopen("servers/block1.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server A file\n");
     exit(1);
@@ -432,7 +438,7 @@ append_transaction_to_server_file(FILE **fin,
   printf("Appending transaction to file\n");
   // Write the new transaction
   fprintf(*fin,
-	  "%d %s %s %d\n",
+	  "\n%d %s %s %d\n",
 	  (max_transaction_index + 1),
 	  sender,
 	  receiver,
@@ -440,6 +446,59 @@ append_transaction_to_server_file(FILE **fin,
 
   // rewind the cursor to the start of the file
   rewind_server_file(fin);
+}
+
+void
+gather_and_send_transactions(FILE **fin,
+			     int sock_fd,
+			     struct sockaddr_storage *addr,
+			     socklen_t addr_len){
+  // To hold each line
+  char *buf = (char *)calloc(BUFLEN, sizeof(*buf));
+  
+  // Loop through the lines
+  while(able_to_read_lines(buf, fin, BUFLEN)){
+    // Send the line to the main server
+    send_simple_udp(sock_fd,
+		    buf,
+		    (struct sockaddr *)addr,
+		    addr_len);
+    // clear the buf
+    memset(buf,0,BUFLEN);
+  }
+  // Send final message
+  strncpy(buf, "Done", BUFLEN);
+  send_simple_udp(sock_fd,
+		  buf,
+		  (struct sockaddr *)addr,
+		  addr_len);
+
+  // rewind the file
+  rewind_server_file(fin);
+
+  // Free mem
+  free(buf);
+}
+
+int
+send_simple_udp(int sock_fd,
+		char *buf,
+		struct sockaddr *addr,
+		socklen_t addr_len){
+  // Send the buffer
+  int num_bytes = sendto(sock_fd,
+			 buf,
+			 BUFLEN,
+			 0,
+			 (struct sockaddr *)addr,
+			 addr_len);
+  // Check return
+  if(num_bytes == -1){
+    perror("Error: Failed to send bytes to Main Server\n");
+    exit(1);
+  }
+  // Return bytes sent
+  return num_bytes;
 }
 
 // Main function
@@ -490,9 +549,9 @@ int main(int argc, const char *argv[]){
     open_transaction_file(&fin);
 
     char *buf = (char *)calloc(BUFLEN, sizeof(*buf));
-    char *username = (char *)calloc(NAMELEN, sizeof(*username));
-    char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
-    char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+    char *username = (char *)calloc(BUFLEN, sizeof(*username));
+    char *sender = (char *)calloc(BUFLEN, sizeof(*sender));
+    char *receiver = (char *)calloc(BUFLEN, sizeof(*receiver));
     
     // Reset Local variables
     clear_session_variables(buf,
@@ -530,67 +589,76 @@ int main(int argc, const char *argv[]){
 		  &max_transaction_index,
 		  &append_transaction,
 		  buf);
-
-    // Check if we are appending or looking up
-    if(append_transaction){
-      printf("Appending transaction to server A\n");
-      append_transaction_to_server_file(&fin,
-					max_transaction_index,
-					sender,
-					receiver,
-					transfer_amount);
-      // Update the senders balance
-      sender_balance = sender_balance - transfer_amount;
-      receiver_balance = receiver_balance + transfer_amount;
-
-      // Update the status's
-      sender_found = 1;
-      receiver_found = 1;
+    if(client_request_type == 3){
+      // Send all transactions
+      printf("Gathering transactions and sending\n");
+      gather_and_send_transactions(&fin,
+				   svr_a_sock_fd,
+				   &main_addr,
+				   main_addr_len);
     }
     else{
-      // Do a lookup in my file and collect data
-      printf("Looking up data\n");
-      lookup_server_data(&fin,
-			 &balance,
-			 &user_found,
-			 client_request_type,
-			 username,
-			 sender,
-			 &sender_balance,
-			 &sender_found,
-			 receiver,
-			 &receiver_balance,
-			 &receiver_found,
-			 &max_transaction_index);
-    }
-    // Print out variable status's
-    printf("User: %s\n", username);
-    printf("User Balance: %d\n", balance);
-    printf("User Found: %d\n", user_found);
-    printf("Sender: %s\n", sender);
-    printf("Sender Balance: %d\n", sender_balance);
-    printf("Sender Found: %d\n", sender_found);
-    printf("Receiver: %s\n", receiver);
-    printf("Receiver Balance: %d\n", receiver_balance);
-    printf("Receiver Found: %d\n", receiver_found);
-    printf("Max Transaction Index: %d\n", max_transaction_index);
-    
-    // Send udp msg back to main
-    prep_and_send_udp_data(svr_a_sock_fd,
-			   buf,
+      // Check if we are appending or looking up
+      if(append_transaction){
+	printf("Appending transaction to server A\n");
+	append_transaction_to_server_file(&fin,
+					  max_transaction_index,
+					  sender,
+					  receiver,
+					  transfer_amount);
+	// Update the senders balance
+	sender_balance = sender_balance - transfer_amount;
+	receiver_balance = receiver_balance + transfer_amount;
+
+	// Update the status's
+	sender_found = 1;
+	receiver_found = 1;
+      }
+      else{
+	// Do a lookup in my file and collect data
+	printf("Looking up data\n");
+	lookup_server_data(&fin,
+			   &balance,
+			   &user_found,
 			   client_request_type,
 			   username,
-			   balance,
-			   user_found,
 			   sender,
-			   sender_balance,
-			   sender_found,
+			   &sender_balance,
+			   &sender_found,
 			   receiver,
-			   receiver_balance,
-			   receiver_found,
-			   max_transaction_index,
-			   &main_addr,
-			   main_addr_len);
+			   &receiver_balance,
+			   &receiver_found,
+			   &max_transaction_index);
+      }
+      // Print out variable status's
+      printf("User: %s\n", username);
+      printf("User Balance: %d\n", balance);
+      printf("User Found: %d\n", user_found);
+      printf("Sender: %s\n", sender);
+      printf("Sender Balance: %d\n", sender_balance);
+      printf("Sender Found: %d\n", sender_found);
+      printf("Receiver: %s\n", receiver);
+      printf("Receiver Balance: %d\n", receiver_balance);
+      printf("Receiver Found: %d\n", receiver_found);
+      printf("Max Transaction Index: %d\n", max_transaction_index);
+    
+      // Send udp msg back to main
+      prep_and_send_udp_data(svr_a_sock_fd,
+			     buf,
+			     client_request_type,
+			     username,
+			     balance,
+			     user_found,
+			     sender,
+			     sender_balance,
+			     sender_found,
+			     receiver,
+			     receiver_balance,
+			     receiver_found,
+			     max_transaction_index,
+			     &main_addr,
+			     main_addr_len);
+    }
     
     printf("The ServerA finished sending the response to the Main Server.\n");
     free(username);
