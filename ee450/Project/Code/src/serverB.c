@@ -248,6 +248,17 @@ close_transaction_file(FILE **fin){
   }
 }
 
+void
+trim_return_char(char *buf){
+  // Loop through buf
+  for(int i = 0; buf[i] != '\0'; i++){
+    if(buf[i] == '\n'){
+      buf[i] ='\0';
+    }
+  }
+}
+
+
 char *
 able_to_read_lines(char *buf,
 		   FILE **fin,
@@ -262,6 +273,11 @@ able_to_read_lines(char *buf,
   if ( ferror(*fin) ){
     perror("ferror was thrown\n");
   }
+
+  // Remove the return character
+  trim_return_char(buf);
+
+  
   printf("Able To read ret val: %s\n", ret_val);
   return ret_val;
 }
@@ -439,7 +455,7 @@ append_transaction_to_server_file(FILE **fin,
   printf("Appending transaction to file\n");
   // Write the new transaction
   fprintf(*fin,
-	  "\n%d %s %s %d\n",
+	  "\n%d %s %s %d",
 	  (max_transaction_index + 1),
 	  sender,
 	  receiver,
@@ -459,6 +475,7 @@ gather_and_send_transactions(FILE **fin,
   
   // Loop through the lines
   while(able_to_read_lines(buf, fin, BUFLEN)){
+    printf("Buffer is: %s\n", buf);
     // Send the line to the main server
     send_simple_udp(sock_fd,
 		    buf,

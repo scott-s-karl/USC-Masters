@@ -436,6 +436,12 @@ add_transaction_to_list(TxList *txlist,
   strncpy(new->data, new_tx, BUFLEN);
   new->next = NULL;
   prev = txlist->head;
+
+  // If head is empty just make it the head
+  if(txlist->head->data == NULL){
+    txlist->head = new;
+    return;
+  }
   
   // Get the index
   sscanf(new->data, "%d", &new_tx_index);
@@ -577,7 +583,8 @@ gather_and_send_to_client(char *buf,
 			  int receiver_found,
 			  int receiver_balance,
 			  int client_request_type,
-			  int sock_fd){
+			  int sock_fd,
+			  int append_transaction){
   // Check the type
   if(client_request_type == 1){
     snprintf(buf,
@@ -590,13 +597,14 @@ gather_and_send_to_client(char *buf,
   else if(client_request_type == 2){
     snprintf(buf,
 	     BUFLEN,
-	     "%s %d %d %s %d %d",
+	     "%s %d %d %s %d %d %d",
 	     sender,
 	     sender_balance,
 	     sender_found,
 	     receiver,
 	     receiver_balance,
-	     receiver_found);
+	     receiver_found,
+	     append_transaction);
   }
   else{
     perror("Error: Gather and send to client bad requst type\n");
@@ -730,7 +738,7 @@ output_txlist(TxList *txlist){
       current = current->next){
     // Print to the file
     fprintf(fout,
-	     "%s",
+	     "%s\n",
 	     current->data);
   }
   // Close the file
@@ -762,6 +770,40 @@ update_found_status(int *found, int tmp){
   *found+=tmp;  
 }
 
+void
+accept_client_connection(int *client_a_fd,
+			 int main_server_tcp_a_fd,
+			 struct sockaddr_storage *client_a_addr,
+			 socklen_t *client_a_addr_sz,
+			 int *client_b_fd,
+			 int main_server_tcp_b_fd,
+			 struct sockaddr_storage *client_b_addr,
+			 socklen_t *client_b_addr_sz){
+  // Try A
+  *client_a_fd = accept(main_server_tcp_a_fd,
+		       (struct sockaddr *)client_a_addr,
+		       client_a_addr_sz);
+  // Check fd
+  if(*client_a_fd == -1){
+    perror("Client to Main Server: Accept Error!\n");
+  }
+  else{
+    return;
+  }
+ 
+  // Try B
+  *client_b_fd = accept(main_server_tcp_b_fd,
+		       (struct sockaddr *)client_b_addr,
+		       client_b_addr_sz);
+  // Check fd
+  if(*client_a_fd == -1){
+    perror("Client to Main Server: Accept Error!\n");
+  }
+  else{
+    return;
+  }
+}
+
 // Main Function
 int main(int argc, const char *argv[]){
 
@@ -791,10 +833,10 @@ int main(int argc, const char *argv[]){
   int client_a_port;
   
   // Client B
-  //int client_b_fd;
-  //struct sockaddr_storage client_b_addr;
-  //socklen_t client_b_addr_sz;
-  //int client_b_port;
+  int client_b_fd;
+  struct sockaddr_storage client_b_addr;
+  socklen_t client_b_addr_sz;
+  int client_b_port;
   
   // Backend Server A
   struct addrinfo sva_sock_prefs; // General Socket Preferences
@@ -886,7 +928,7 @@ int main(int argc, const char *argv[]){
   printf("The main server is up and running\n");
 
   // Set initial case for connection state
-  int state = CATOMAIN;
+  int state = CTOMAIN;
 
   // Define the vars to store in when parsing requests
   int client_request_type = 999;
@@ -894,6 +936,7 @@ int main(int argc, const char *argv[]){
   int transfer_amount = 0;
   int max_transaction_index = 0;
   int append_transaction = 0;
+  int current_client = 0;
   
   char *username = (char *)calloc(BUFLEN, sizeof(*username));
   int user_found = 0;
@@ -911,8 +954,12 @@ int main(int argc, const char *argv[]){
 
   TxList txlist;
   txlist.head = calloc(1, sizeof(TxListNode));
-  txlist.head->data = calloc(256, sizeof(char));
+  txlist.head->data = NULL;
   txlist.head->next = NULL;
+
+  // Select
+  fd_set rset;
+  int maxfdp1 = (client_a_fd > client_b_fd) ? (client_a_fd + 1) : (client_b_fd + 1);
   
   // Connection Loop
   while(1){ // main accept() loop
@@ -922,7 +969,61 @@ int main(int argc, const char *argv[]){
       
     // Switch on clientA, clientB, SVRA, SVRB, SVRC
     switch(state){    
+    case CTOMAIN:
+      printf("Case - Client Unknown to Main\n");
+      client_a_addr_sz = sizeof client_a_addr;
+      client_b_addr_sz = sizeof client_b_addr;
+
+      // Try to accept the client
+      /*accept_client_connection(&client_a_fd,
+			       main_server_tcp_a_fd,
+			       &client_a_addr,
+			       &client_a_addr_sz,
+			       &client_b_fd,
+			       main_server_tcp_b_fd,
+			       &client_b_addr,
+			       &client_b_addr_sz);
+      */
+      FD_SET(client_a_fd, &rset);
+      FD_SET(client_b_fd, &rset);
       
+      current_client = select(maxfdp1, &rset, NULL, NULL, NULL);
+
+      if(FD_ISSET(client_a_fd, &rset)){
+	printf("Client A Set\n");
+      }
+      
+      if(FD_ISSET(client_b_fd, &rset)){
+	printf("Client B Set\n");
+      }
+
+      // Determine which client
+      printf("Client A fd: %d\n", client_a_fd);
+      printf("Client B fd: %d\n", client_b_fd);
+      
+      if(client_a_fd != 0){
+	if(client_a_fd == -1){
+	  perror("Client A to Main Server: Accept Error!\n");
+	  continue;
+	}
+	else{
+	  state = CATOMAIN;
+	  current_client = 1;
+	}
+      }
+      else if(client_b_fd != 0){
+	if(client_b_fd == -1){
+	  perror("Client B to Main Server: Accept Error!\n");
+	  continue;
+	}
+	else{
+	  state = CBTOMAIN;
+	  current_client = 2;
+	}
+      }
+      // Switch to that client
+      printf("Current Client is: %d", current_client);
+      break;
     case CATOMAIN: // clientA to main
       printf("Case - Client A to Main\n");
 
@@ -966,7 +1067,7 @@ int main(int argc, const char *argv[]){
 	// Check the type of request and set the state
 	if(client_request_type == 1){
 	  printf("The main server received input=%s from the client using TCP over port %d\n", username, client_a_port);
-	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
+	  state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
 	}
 	else if(client_request_type == 2){
 	  printf("The main server received from %s to transfer %d coins to %s using TCP over port %d\n",
@@ -974,11 +1075,11 @@ int main(int argc, const char *argv[]){
 		 transfer_amount,
 		 receiver,
 		 client_a_port);
-	  state = (num_bytes_recv != -1 ? MAINTOSA : state);
+	  state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
 	}
 	else if(client_request_type == 3){
 	   printf("Main server received a TXLIST reqeust\n");
-	   state = (num_bytes_recv != -1 ? MAINTOSA : state);
+	   state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
 	}
 	else{ // Invalid query
 	  printf("Invalid Query\n");
@@ -1006,7 +1107,8 @@ int main(int argc, const char *argv[]){
 						   receiver_balance,
 						   receiver_found,
 						   client_request_type,
-						   client_a_fd);
+						   client_a_fd,
+						   append_transaction);
 	if(client_request_type == 1){
 	  printf("The main server sent the current balance to client A.\n");
 	}
@@ -1031,13 +1133,119 @@ int main(int argc, const char *argv[]){
 			      &receiver_found);
       
       // Update state to wait for connection from client
-      state = (num_bytes_sent != -1 ? CATOMAIN : state);
+      state = (num_bytes_sent != -1 ? CTOMAIN : state);
       break;
     case CBTOMAIN: // clientB to main
       printf("Case - Client B to Main\n");
+
+      // Accept the connection and store in fd
+      client_b_addr_sz = sizeof client_a_addr;
+      client_b_fd = accept(main_server_tcp_b_fd,
+			   (struct sockaddr *)&client_b_addr,
+			   &client_b_addr_sz);
+      // Check fd
+      if(client_b_fd == -1){
+	perror("Client to Main Server: Accept Error!\n");
+	continue;
+      }
+
+      // Port/ Where connection came from
+      client_b_port = get_port((struct sockaddr *)&client_b_addr);
+
+      // From bgnet forking
+      if(client_b_fd != -1){ // this is the child process
+	// Receive the msg from clientA
+	num_bytes_recv = receive_client_msg(&buf,
+					    BUFLEN,
+					    client_b_fd);
+
+	printf("Buffer from client is: %s\n", buf);
+	// Parse the msg and fill the variables
+	parse_client_msg(&client_request_type,
+			 username,
+			 sender,
+			 receiver,
+			 &transfer_amount,
+			 buf,
+			 client_b_port);
+
+	printf("Request Type: %d\n", client_request_type);
+	printf("Username: %s\n", username);
+	printf("Sender: %s\n", sender);
+	printf("Receiver: %s\n", receiver);
+	printf("Transfer Amount %d\n", transfer_amount);
+	
+	// Check the type of request and set the state
+	if(client_request_type == 1){
+	  printf("The main server received input=%s from the client using TCP over port %d\n", username, client_b_port);
+	  state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
+	}
+	else if(client_request_type == 2){
+	  printf("The main server received from %s to transfer %d coins to %s using TCP over port %d\n",
+		 sender,
+		 transfer_amount,
+		 receiver,
+		 client_b_port);
+	  state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
+	}
+	else if(client_request_type == 3){
+	   printf("Main server received a TXLIST reqeust\n");
+	   state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
+	}
+	else{ // Invalid query
+	  printf("Invalid Query\n");
+	}	
+      }
       break;
     case MAINTOCB: // Main to clientB
-      printf("Case - Main to Client A\n");
+      printf("Case - Main to Client B\n");
+
+      if(client_request_type == 3){
+	// Gather and send
+	num_bytes_sent = gather_and_send_txlist_completion(buf,
+							   client_b_fd);
+	printf("The main server sent finished sending txlist confirmation to client.\n");
+      }
+      else{
+	// Prepare the buffer and send the data
+	num_bytes_sent = gather_and_send_to_client(buf,
+						   username,
+						   balance,
+						   user_found,
+						   sender,
+						   sender_balance,
+						   sender_found,
+						   receiver,
+						   receiver_balance,
+						   receiver_found,
+						   client_request_type,
+						   client_b_fd,
+						   append_transaction);
+	if(client_request_type == 1){
+	  printf("The main server sent the current balance to client B.\n");
+	}
+	else if(client_request_type == 2){
+	  printf("The main server sent the result of the transaction to client B.\n");
+	}
+      }
+
+      // clear state variables for next use
+      clear_session_variables(&client_request_type,
+			      &transfer_amount,
+			      &max_transaction_index,
+			      &append_transaction,
+			      username,
+			      &balance,
+			      &user_found,
+			      sender,
+			      &sender_balance,
+			      &sender_found,
+			      receiver,
+			      &receiver_balance,
+			      &receiver_found);
+      
+      // Update state to wait for connection from client
+      state = (num_bytes_sent != -1 ? CTOMAIN : state);
       break;
     case MAINTOSA: // Main to Server A
       printf("Case - Main to Server A\n");
@@ -1099,7 +1307,12 @@ int main(int argc, const char *argv[]){
 	
 	// Check if the append flag is set
 	if(append_transaction){
-	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  if(current_client == 1){
+	    state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  }
+	  else{
+	    state = (num_bytes_recv != -1 ? MAINTOCB : state);
+	  }
 	}
 	else{
 	  state = (num_bytes_recv != -1 ? MAINTOSB : state);
@@ -1196,7 +1409,12 @@ int main(int argc, const char *argv[]){
 	
 	// Check if the append flag is set
 	if(append_transaction){
-	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  if(current_client == 1){
+	    state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  }
+	  else{
+	    state = (num_bytes_recv != -1 ? MAINTOCB : state);
+	  }
 	}
 	else{
 	  state = (num_bytes_recv != -1 ? MAINTOSC : state);
@@ -1293,7 +1511,13 @@ int main(int argc, const char *argv[]){
 	
 	// Check if the append flag is set
 	if(append_transaction){
-	  state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  if(current_client == 1){
+	    state = (num_bytes_recv != -1 ? MAINTOCA : state);
+	  }
+	  else{
+	    state = (num_bytes_recv != -1 ? MAINTOCB : state);
+	  }
+	  break;
 	}
       }
       else{
@@ -1314,9 +1538,10 @@ int main(int argc, const char *argv[]){
       
       if(client_request_type == 1){
 	printf("The Main Server received transactions from Server C using UDP over port %d.\n", svc_port);
-	state = MAINTOCA;
+	state = (current_client == 1) ? MAINTOCA : MAINTOCB;
 	break;
       }
+      
       else if(client_request_type == 2){
 	printf("The Main Server received the feedback from Server C using UDP over port %d.\n", svc_port);
 	// Check if the transaciton is valid
@@ -1351,23 +1576,29 @@ int main(int argc, const char *argv[]){
 	  // Set the append transaction to true to write to random server
 	  append_transaction = 1;
 	}
-	else if(client_request_type == 3){
-	  printf("The Main Server received the feedback from Server C using UDP over port %d.\n", svc_port);
-	  
-	  printf("Outputting File of transactions\n");
-	  
-	  // Write the transaction list to file
-	  output_txlist(&txlist);
-
-	  // Switch state to return to main
-	  state = MAINTOCA;
+	else{
+	  printf("Invalid Transaction\n");
+	  state = (current_client == 1) ? MAINTOCA : MAINTOCB;
 	  break;
 	}
-	else{
-	  printf("Other Case.\n");
-	  state = MAINTOCA;
-	}		
       }
+      
+      else if(client_request_type == 3){
+	printf("The Main Server received the feedback from Server C using UDP over port %d.\n", svc_port);
+	  
+	printf("Outputting File of transactions\n");
+	  
+	// Write the transaction list to file
+	output_txlist(&txlist);
+
+	// Switch state to return to main
+	state = (current_client == 1) ? MAINTOCA : MAINTOCB;
+	break;
+      }
+      else{
+	printf("Other Case.\n");
+	state = (current_client == 1) ? MAINTOCA : MAINTOCB;
+      }		
       break;
     case ENDTRANS:
     default: // All other cases error
@@ -1382,6 +1613,7 @@ int main(int argc, const char *argv[]){
 
   // Close descriptor
   close(client_a_fd);
+  close(client_b_fd);
   
   // Free memory
   free(buf);

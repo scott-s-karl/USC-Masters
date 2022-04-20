@@ -116,7 +116,8 @@ parse_tcp_msg(char *username,
 	      int *receiver_balance,
 	      int *receiver_found,
 	      char *client_buf,
-	      int request_type){
+	      int request_type,
+	      int *valid_transaction){
   // Check request type
   if(request_type == 2){
     sscanf(client_buf,
@@ -127,13 +128,14 @@ parse_tcp_msg(char *username,
   }
   else if(request_type == 4){
     sscanf(client_buf,
-	   "%s %d %d %s %d %d",
+	   "%s %d %d %s %d %d %d",
 	   sender,
 	   sender_found,
 	   sender_balance,
 	   receiver,
 	   receiver_found,
-	   receiver_balance);
+	   receiver_balance,
+	   valid_transaction);
   }
   else{
     perror("Error: Invalid request type\n");
@@ -149,18 +151,8 @@ check_transfer_return_values(char *sender,
 			     char *receiver,
 			     int receiver_balance,
 			     int receiver_found,
-			     int transfer_amount){
-
-  // Check if sender doesn't have funds
-  if(sender_balance < transfer_amount){
-    printf("%s was unable to transfer %d alicoins to %s because of insufficient balance.\n",
-	   sender,
-	   transfer_amount,
-	   receiver);
-    printf("The current balance of %s is : %d alicoins.\n",
-	   sender,
-	   sender_balance);
-  }
+			     int transfer_amount,
+			     int valid_transaction){
 
   // Check if sender or receiver isn't found
   if(!sender_found && !receiver_found){
@@ -174,6 +166,17 @@ check_transfer_return_values(char *sender,
   else if(!receiver_found){
     printf("Unable to proceed with the transaction as %s is not part of the network.\n", receiver);
   }
+
+  // Check if sender doesn't have funds
+  if(!valid_transaction){
+    printf("%s was unable to transfer %d alicoins to %s because of insufficient balance.\n",
+	   sender,
+	   transfer_amount,
+	   receiver);
+    printf("The current balance of %s is: %d alicoins.\n",
+	   sender,
+	   sender_balance);
+  }
 }
 
 int
@@ -184,7 +187,7 @@ get_request_type(int argc, const char* argv[]){
       return 3;
   }
   // Check the count
-  if(argc == 1){
+  if(argc == 2){
     return 1;
   }
   else if(argc == 4){
@@ -235,7 +238,8 @@ int main(int argc, const char* argv[]){
   int receiver_found;
   int receiver_balance;
   int transfer_amount;
-
+  int valid_transaction;
+  
   // Get the type of action the user is attempting to preform
   int request_type = get_request_type(argc, argv);
   printf("Request: %d\n", request_type);
@@ -270,7 +274,8 @@ int main(int argc, const char* argv[]){
 		  &receiver_balance,
 		  &receiver_found,
 		  client_buf,
-		  argc);
+		  argc,
+		  &valid_transaction);
 
     printf("Username: %s\n", username);
     printf("Balance: %d\n", balance);
@@ -327,7 +332,8 @@ int main(int argc, const char* argv[]){
 		  &receiver_balance,
 		  &receiver_found,
 		  client_buf,
-		  argc);
+		  argc,
+		  &valid_transaction);
     printf("Sender: %s\n", sender);
     printf("Sender Balance: %d\n", sender_balance);
     printf("Sender Found: %d\n", sender_found);
@@ -342,7 +348,8 @@ int main(int argc, const char* argv[]){
 				 receiver,
 				 receiver_balance,
 				 receiver_found,
-				 transfer_amount);
+				 transfer_amount,
+				 valid_transaction);
     break;
 
   case 3: // TXLIST

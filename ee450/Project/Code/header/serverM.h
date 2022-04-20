@@ -29,6 +29,7 @@ typedef struct TxList{
 
 // Enumerated Values
 typedef enum{
+  CTOMAIN,
   CATOMAIN,
   MAINTOCA,
   CBTOMAIN,
@@ -158,7 +159,8 @@ gather_and_send_to_client(char *buf,
 			  int receiver_found,
 			  int receiver_balance,
 			  int client_request_type,
-			  int sock_fd);
+			  int sock_fd,
+			  int append_transaction);
 
 int
 get_random_server();
