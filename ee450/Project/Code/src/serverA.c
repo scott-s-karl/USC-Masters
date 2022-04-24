@@ -11,66 +11,67 @@
 
 // Local Functions
 void
-check_number_of_args(int argc){
+verify_input_count(int argc){
   if(argc > 1){
-    fprintf(stderr, "The Backend Server A program doesn't take input!\n");
+    fprintf(stderr, "Error: Server A doesn't take input\n");
     exit(1);
   }
 }
 
 void
-set_sock_preferences(struct addrinfo *sock_preferences){
-  memset(sock_preferences, 0, sizeof *sock_preferences);
-  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
-  sock_preferences->ai_socktype = SOCK_DGRAM; // UDP
-  sock_preferences->ai_flags = AI_PASSIVE; // Use my IP
+socket_setup(struct addrinfo *socket_prefs){
+  memset(socket_prefs, 0, sizeof *socket_prefs);
+  socket_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  socket_prefs->ai_socktype = SOCK_DGRAM; // UDP
+  socket_prefs->ai_flags = AI_PASSIVE; // Use my IP
 }
 
 void
-check_if_getaddrinfo_failed(int getaddrinfo_result){
-  if(getaddrinfo_result == -1){
-    fprintf(stderr, "getaddrinfo: Backend Server A: %s\n", gai_strerror(getaddrinfo_result));
+getaddrinfo_error(int ret_val){
+  if(ret_val == -1){
+    fprintf(stderr, "Error: Backend Server A: %s\n", gai_strerror(ret_val));
     exit(1);
   }
 }
 
 void
-create_sock_and_bind(int *sock_fd, struct addrinfo *poss_cnntns){
+bind_to_available_socket(int *sock_fd,
+			 struct addrinfo *cxns){
   // Local Variables
-  int bind_status;
-  struct addrinfo *cnntn;
+  int bind_return_value;
+  struct addrinfo *cxn;
   
   // Loop through linked list of connections
-  for(cnntn = poss_cnntns;
-      cnntn != NULL;
-      cnntn = cnntn->ai_next){
+  for(cxn = cxns;
+      cxn != NULL;
+      cxn = cxn->ai_next){
     // Attempt to call socket
-    *sock_fd = socket(cnntn->ai_family,
-		      cnntn->ai_socktype,
-		      cnntn->ai_protocol);
+    *sock_fd = socket(cxn->ai_family,
+		      cxn->ai_socktype,
+		      cxn->ai_protocol);
 
     // Check return code
     if(*sock_fd == -1){
-      perror("Server A: Socket creation failed");
+      perror("Error: Socket creation failed.\n");
       continue;
     }
     
     // Attempt to bind
-    bind_status = bind(*sock_fd,
-		       cnntn->ai_addr,
-		       cnntn->ai_addrlen);
+    bind_return_value = bind(*sock_fd,
+		       cxn->ai_addr,
+		       cxn->ai_addrlen);
 
     // Check bind status
-    if(bind_status == -1){
+    if(bind_return_value == -1){
       close(*sock_fd);
-      perror("Server A: Connection through socket failed");
+      perror("Error: Bind Failed.\n");
       continue;
     }
     break;
   }
   // Check if we made it to a NULL value/list empty/
-  if(cnntn == NULL){
-    fprintf(stderr, "Server A: Failed to connect.");
+  if(cxn == NULL){
+    fprintf(stderr, "Error: Couldn't find a socket.\n");
     exit(2);
   }
 }
@@ -121,7 +122,6 @@ get_request_type(char *buf,
     *client_request_type = 2;
   }
   else if(spaces == 0){
-    printf("Type 3 Request - get type\n");
     *client_request_type = 3;
   }
   else{
@@ -173,21 +173,21 @@ parse_udp_msg(int *client_request_type,
 }
 
 void
-prep_and_send_udp_data(int sock_fd,
-		       char *buf,
-		       int client_request_type,
-		       char *username,
-		       int balance,
-		       int user_found,
-		       char *sender,
-		       int sender_balance,
-		       int sender_found,
-		       char *receiver,
-		       int receiver_balance,
-		       int receiver_found,
-		       int max_transaction_index,
-		       struct sockaddr_storage *addr,
-		       socklen_t addr_len){
+bt_request_send_to_main(int sock_fd,
+			char *buf,
+			int client_request_type,
+			char *username,
+			int balance,
+			int user_found,
+			char *sender,
+			int sender_balance,
+			int sender_found,
+			char *receiver,
+			int receiver_balance,
+			int receiver_found,
+			int max_transaction_index,
+			struct sockaddr_storage *addr,
+			socklen_t addr_len){
   // Pack based on request
   if(client_request_type == 1){
     snprintf(buf,
@@ -231,7 +231,7 @@ prep_and_send_udp_data(int sock_fd,
 void
 open_transaction_file(FILE **fin){
 
-  *fin = fopen("servers/block1.txt", "r+");
+  *fin = fopen("server_files/serverA/block1.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server A file\n");
     exit(1);
@@ -258,7 +258,7 @@ trim_return_char(char *buf){
 }
 
 char *
-able_to_read_lines(char *buf,
+read_line(char *buf,
 		   FILE **fin,
 		   int buf_len){
   // Get a line
@@ -274,8 +274,8 @@ able_to_read_lines(char *buf,
 
   // Remove the return character
   trim_return_char(buf);
-  
-  printf("Ret val: %s\n", ret_val);
+
+  // 
   return ret_val;
 }
 
@@ -294,10 +294,9 @@ get_user_balance(char *username,
   int idx;
     
   // Loop through the lines in the file
-  while(able_to_read_lines(buf, fin, BUFLEN)){
+  while(read_line(buf, fin, BUFLEN)){
     // Split line
     sscanf(buf,"%d %s %s %d", &idx, sender, receiver, &transfer_amount);
-    printf("Line Read %s\n", buf);
 
     // Check for max transaction index
     if(*max_transaction_index < idx){
@@ -306,23 +305,12 @@ get_user_balance(char *username,
     
     // Check if username matches sender or receiver
     if(strncmp(username, sender, BUFLEN) == 0){
-      printf("User is the sender\n");
-      printf("User Current Balance: %d\n", *balance);
-      printf("Transfer Amount: %d\n", transfer_amount);
       *balance = *balance - transfer_amount;
       *user_found = 1;
-      printf("New Balance: %d\n", *balance);
     }
     else if(strncmp(username, receiver, BUFLEN) == 0){
-      printf("User is the receiver\n");
-      printf("User Current Balance: %d\n", *balance);
-      printf("Transfer Amount: %d\n", transfer_amount);
       *balance = *balance + transfer_amount;
       *user_found = 1;
-      printf("New Balance: %d\n", *balance);
-    }
-    else{
-      printf("User not involved in this transaction\n");
     }
     // Clear buf for next line
     memset(buf, 0, BUFLEN);
@@ -351,37 +339,32 @@ lookup_server_data(FILE **fin,
 		   int *max_transaction_index){
 
   // Switch on request type
-  printf("Looking up server A data checking request type.\n");
   if(client_request_type == 1){
-    printf("Type 1 request\n");
     get_user_balance(username,
 		     user_found,
 		     balance,
 		     max_transaction_index,
 		     fin);
-    // Rewind after lookup
-    rewind_server_file(fin);
+    // Reset after lookup
+    reset_server_file(fin);
   }
   else if(client_request_type == 2){
-    printf("Type 2 request\n");
-    printf("Doing sender lookup\n");
     get_user_balance(sender,
 		     sender_found,
 		     sender_balance,
 		     max_transaction_index,
 		     fin);
     
-    // Rewind file
-    rewind_server_file(fin);
+    // Reset file
+    reset_server_file(fin);
     
-    printf("Doing receiver lookup\n");
     get_user_balance(receiver,
 		     receiver_found,
 		     receiver_balance,
 		     max_transaction_index,
 		     fin);
-    // Rewind file
-    rewind_server_file(fin);
+    // Reset file
+    reset_server_file(fin);
     
   }
   else{
@@ -430,9 +413,9 @@ clear_session_variables(char *buf,
 }
 
 void
-rewind_server_file(FILE **fin){
+reset_server_file(FILE **fin){
   if(0 != fseek(*fin, 0L, SEEK_SET)){
-    perror("ERROR: Problem rewinding Server A file.\n");
+    perror("ERROR: Problem reseting Server A file.\n");
     exit(1);
   }
 }
@@ -443,13 +426,12 @@ append_transaction_to_server_file(FILE **fin,
 				  char *sender,
 				  char *receiver,
 				  int transfer_amount){
-  printf("Moving Cursor to end of file\n");
+  
   // Get the cursor to the end of the file
   if (0 != fseek(*fin, 0L, SEEK_END)){
     perror("ERROR: Problem appending to the server A file\n");
     exit(1);
   }
-  printf("Appending transaction to file\n");
   // Write the new transaction
   fprintf(*fin,
 	  "\n%d %s %s %d",
@@ -458,8 +440,8 @@ append_transaction_to_server_file(FILE **fin,
 	  receiver,
 	  transfer_amount);
 
-  // rewind the cursor to the start of the file
-  rewind_server_file(fin);
+  // reset the cursor to the start of the file
+  reset_server_file(fin);
 }
 
 void
@@ -471,8 +453,7 @@ gather_and_send_transactions(FILE **fin,
   char *buf = (char *)calloc(BUFLEN, sizeof(*buf));
   
   // Loop through the lines
-  while(able_to_read_lines(buf, fin, BUFLEN)){
-    printf("Buffer is: %s\n", buf);
+  while(read_line(buf, fin, BUFLEN)){
     // Send the line to the main server
     send_simple_udp(sock_fd,
 		    buf,
@@ -488,8 +469,8 @@ gather_and_send_transactions(FILE **fin,
 		  (struct sockaddr *)addr,
 		  addr_len);
 
-  // rewind the file
-  rewind_server_file(fin);
+  // reset the file
+  reset_server_file(fin);
 
   // Free mem
   free(buf);
@@ -520,28 +501,29 @@ send_simple_udp(int sock_fd,
 int main(int argc, const char *argv[]){
 
   // Check the input arguments
-  check_number_of_args(argc);
+  verify_input_count(argc);
 
   // Local variables
-  int svr_a_sock_fd;
-  int getaddrinfo_result;
+  int svr_a_socket_fd;
+  int gai_ret_val;
 
-  struct addrinfo svr_a_sock_prefs;
-  struct addrinfo *svr_a_poss_cnntns;
+  struct addrinfo svr_a_socket_prefs;
+  struct addrinfo *svr_a_cxns;
   struct sockaddr_storage main_addr;
   socklen_t main_addr_len;
   
-  // Setup cnntn
-  set_sock_preferences(&svr_a_sock_prefs);
-  getaddrinfo_result = getaddrinfo(NULL,
-				   SRVRAPORT,
-				   &svr_a_sock_prefs,
-				   &svr_a_poss_cnntns);
-  check_if_getaddrinfo_failed(getaddrinfo_result);
+  // Setup cxn
+  socket_setup(&svr_a_socket_prefs);
+  gai_ret_val = getaddrinfo(NULL,
+			    SRVRAPORT,
+			    &svr_a_socket_prefs,
+			    &svr_a_cxns);
+  getaddrinfo_error(gai_ret_val);
 
-  // Create and bind socket for cnntn
-  create_sock_and_bind(&svr_a_sock_fd, svr_a_poss_cnntns);
-  freeaddrinfo(svr_a_poss_cnntns);
+  // Create and bind socket for cxn
+  bind_to_available_socket(&svr_a_socket_fd,
+			   svr_a_cxns);
+  freeaddrinfo(svr_a_cxns);
 
   // Start Messages
   printf("The Server A is up and running using UDP on port %s\n", SRVRAPORT);
@@ -589,9 +571,8 @@ int main(int argc, const char *argv[]){
     receive_and_store_from_main(buf,
 				&main_addr_len,
 				&main_addr,
-				svr_a_sock_fd);
+				svr_a_socket_fd);
 
-    printf("Buffer from Main: %s\n", buf);
     // Parse msg from main
     parse_udp_msg(&client_request_type,
 		  username,
@@ -606,16 +587,14 @@ int main(int argc, const char *argv[]){
 		  buf);
     if(client_request_type == 3){
       // Send all transactions
-      printf("Gathering transactions and sending\n");
       gather_and_send_transactions(&fin,
-				   svr_a_sock_fd,
+				   svr_a_socket_fd,
 				   &main_addr,
 				   main_addr_len);
     }
     else{
       // Check if we are appending or looking up
       if(append_transaction){
-	printf("Appending transaction to server A\n");
 	append_transaction_to_server_file(&fin,
 					  max_transaction_index,
 					  sender,
@@ -631,7 +610,6 @@ int main(int argc, const char *argv[]){
       }
       else{
 	// Do a lookup in my file and collect data
-	printf("Looking up data\n");
 	lookup_server_data(&fin,
 			   &balance,
 			   &user_found,
@@ -645,34 +623,23 @@ int main(int argc, const char *argv[]){
 			   &receiver_found,
 			   &max_transaction_index);
       }
-      // Print out variable status's
-      printf("User: %s\n", username);
-      printf("User Balance: %d\n", balance);
-      printf("User Found: %d\n", user_found);
-      printf("Sender: %s\n", sender);
-      printf("Sender Balance: %d\n", sender_balance);
-      printf("Sender Found: %d\n", sender_found);
-      printf("Receiver: %s\n", receiver);
-      printf("Receiver Balance: %d\n", receiver_balance);
-      printf("Receiver Found: %d\n", receiver_found);
-      printf("Max Transaction Index: %d\n", max_transaction_index);
     
       // Send udp msg back to main
-      prep_and_send_udp_data(svr_a_sock_fd,
-			     buf,
-			     client_request_type,
-			     username,
-			     balance,
-			     user_found,
-			     sender,
-			     sender_balance,
-			     sender_found,
-			     receiver,
-			     receiver_balance,
-			     receiver_found,
-			     max_transaction_index,
-			     &main_addr,
-			     main_addr_len);
+      bt_request_send_to_main(svr_a_socket_fd,
+			      buf,
+			      client_request_type,
+			      username,
+			      balance,
+			      user_found,
+			      sender,
+			      sender_balance,
+			      sender_found,
+			      receiver,
+			      receiver_balance,
+			      receiver_found,
+			      max_transaction_index,
+			      &main_addr,
+			      main_addr_len);
     }
     
     printf("The ServerA finished sending the response to the Main Server.\n");

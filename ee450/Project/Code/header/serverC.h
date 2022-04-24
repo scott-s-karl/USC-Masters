@@ -17,23 +17,23 @@
 #include <signal.h>
 
 void
-check_number_of_args(int argc);
+verify_input_count(int argc);
 
 void
-set_sock_preferences(struct addrinfo *sock_preferences);
+socket_setup(struct addrinfo *sock_prefs);
 
 void
-check_if_getaddrinfo_failed(int getaddrinfo_result);
+getaddrinfo_error(int ret_val);
 
 void
-create_sock_and_bind(int *sock_fd, struct addrinfo *poss_cnntns);
+bind_to_available_socket(int *sock_fd,
+			 struct addrinfo *cxns);
 
 void
 receive_and_store_from_main(char *buf,
 			    socklen_t *addr_len,
 			    struct sockaddr_storage *addr,
-			    int sock_fd
-			    );
+			    int sock_fd);
 void
 get_request_type(char *buf,
 		 int *client_request_type);
@@ -52,29 +52,29 @@ parse_udp_msg(int *client_request_type,
 	      char *buf);
 
 void
-prep_and_send_udp_data(int sock_fd,
-		       char *buf,
-		       int client_request_type,
-		       char *username,
-		       int balance,
-		       int user_found,
-		       char *sender,
-		       int sender_balance,
-		       int sender_found,
-		       char *receiver,
-		       int receiver_balance,
-		       int receiver_found,
-		       int max_transaction_index,
-		       struct sockaddr_storage *addr,
-		       socklen_t addr_len);
+bt_request_send_to_main(int sock_fd,
+			char *buf,
+			int client_request_type,
+			char *username,
+			int balance,
+			int user_found,
+			char *sender,
+			int sender_balance,
+			int sender_found,
+			char *receiver,
+			int receiver_balance,
+			int receiver_found,
+			int max_transaction_index,
+			struct sockaddr_storage *addr,
+			socklen_t addr_len);
 
 void
 open_transaction_file(FILE **fin);
 
 char *
-able_to_read_lines(char *buf,
-		   FILE **fin,
-		   int buf_len);
+read_line(char *buf,
+	  FILE **fin,
+	  int buf_len);
 
 void
 get_user_balance(char *username,
@@ -116,7 +116,7 @@ clear_session_variables(char *buf,
 			int *receiver_found);
 
 void
-rewind_server_file(FILE **fin);
+reset_server_file(FILE **fin);
 
 void
 append_transaction_to_server_file(FILE **fin,

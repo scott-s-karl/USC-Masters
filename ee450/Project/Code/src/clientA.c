@@ -9,11 +9,10 @@
 #define CLIENTPORT "4141" // Client Port
 #define MAINPORT "25711" // Main Server TCP Port
 #define BUFLEN 2048
-#define MSGLEN 2048
 
 // Local Functions
 void
-check_number_of_args(int argc){
+verify_input_count(int argc){
   if (argc < 2){
     fprintf(stderr, "The client A program takes input!\n");
     exit(1);
@@ -21,35 +20,35 @@ check_number_of_args(int argc){
 }
 
 void
-check_if_getaddrinfo_failed(int getaddrinfo_result){
-  if(getaddrinfo_result){
+getaddrinfo_error(int ret_val){
+  if(ret_val){
     fprintf(stderr,
-	    "getaddrinfo value is %s\n", gai_strerror(getaddrinfo_result));
+	    "getaddrinfo value is %s\n", gai_strerror(ret_val));
     exit(1);
   }
 }
 
 void
-set_sock_preferences(struct addrinfo *sock_preferences){
-  memset(sock_preferences, 0, sizeof(*sock_preferences)); // Empty
-  sock_preferences->ai_family = AF_UNSPEC; // IPv4 or IPv6
-  sock_preferences->ai_socktype = SOCK_STREAM; // UDP type
+socket_setup(struct addrinfo *socket_prefs){
+  memset(socket_prefs, 0, sizeof(*socket_prefs)); // Empty
+  socket_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
+  socket_prefs->ai_socktype = SOCK_STREAM; // UDP type
 }
 
 void
-create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns){
+connect_to_available_socket(int *sock_fd, struct addrinfo *cxns){
   // Local variables
   int connect_status;
-  struct addrinfo *cnntn;
+  struct addrinfo *cxn;
   
   // Loop through possible connections
-  for(cnntn = poss_cnntns;
-      cnntn != NULL;
-      cnntn = cnntn->ai_next){
+  for(cxn = cxns;
+      cxn != NULL;
+      cxn = cxn->ai_next){
     // Attempt to create a socket
-    *sock_fd = socket(cnntn->ai_family,
-		      cnntn->ai_socktype,
-		      cnntn->ai_protocol);
+    *sock_fd = socket(cxn->ai_family,
+		      cxn->ai_socktype,
+		      cxn->ai_protocol);
     
     // Check socket return code
     if(*sock_fd == -1){
@@ -59,8 +58,8 @@ create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns){
     
     // Attempt to connect
     connect_status = connect(*sock_fd,
-			     cnntn->ai_addr,
-			     cnntn->ai_addrlen);
+			     cxn->ai_addr,
+			     cxn->ai_addrlen);
     
     // Check the return code
     if(connect_status == -1){
@@ -72,7 +71,7 @@ create_sock_and_connect(int *sock_fd, struct addrinfo *poss_cnntns){
   }
 
   // Check if at the end of possible connection without valid
-  if(cnntn == NULL){
+  if(cxn == NULL){
     fprintf(stderr, "Client A: Failed to connect\n");
     exit(2);
   }
@@ -199,33 +198,34 @@ get_request_type(int argc, const char* argv[]){
 
 int main(int argc, const char* argv[]){
   // Local Variables
-  int getaddrinfo_result;
-  int client_sock_fd;
-  struct addrinfo sock_preferences;
-  struct addrinfo *poss_cnntns;
+  int gai_ret_val;
+  int client_socket_fd;
+  struct addrinfo socket_prefs;
+  struct addrinfo *cxns;
   
   // Check args count
-  check_number_of_args(argc);
+  verify_input_count(argc);
   
   // Setup client preferences
-  set_sock_preferences(&sock_preferences);
+  socket_setup(&socket_prefs);
   
   // Get and check addrinfo
-  getaddrinfo_result = getaddrinfo(NULL,
-				   MAINPORT,
-				   &sock_preferences,
-				   &poss_cnntns);
-  check_if_getaddrinfo_failed(getaddrinfo_result);
+  gai_ret_val = getaddrinfo(NULL,
+			    MAINPORT,
+			    &socket_prefs,
+			    &cxns);
+  getaddrinfo_error(gai_ret_val);
   
   // Create socket and connect
-  create_sock_and_connect(&client_sock_fd, poss_cnntns);
-  freeaddrinfo(poss_cnntns);
+  connect_to_available_socket(&client_socket_fd,
+			      cxns);
+  freeaddrinfo(cxns);
   
   // Boot Up Message
   printf("The client A is up and running.\n");
 
   // Define buffer for sending and receiving
-  char *msg = (char *)calloc(MSGLEN, sizeof(*msg));
+  char *msg = (char *)calloc(BUFLEN, sizeof(*msg));
   char *client_buf = (char *)calloc(BUFLEN, sizeof *client_buf);
   char *username = (char *)calloc(BUFLEN, sizeof *username);
   int user_found;
@@ -241,28 +241,24 @@ int main(int argc, const char* argv[]){
   
   // Get the type of action the user is attempting to preform
   int request_type = get_request_type(argc, argv);
-  printf("Request: %d\n", request_type);
   
   // Switch based on arguments given
   switch(request_type){
   case 1: // Check Wallet ./clientA Martin
-    printf("Action - CHECK WALLET\n");
 
     // Send Data
     sprintf(msg, "%s", argv[1]);
-    send_tcp_msg(client_sock_fd,
-		MSGLEN,
-		msg);
+    send_tcp_msg(client_socket_fd,
+		 BUFLEN,
+		 msg);
     printf("%s sent a balance enquiry request to the main server\n", msg);
 
     // Receive Data  
     recv_tcp_msg(client_buf,
 		 BUFLEN,
-		 client_sock_fd);
+		 client_socket_fd);
 
     // Parse Received Data
-    printf("Parsing Received Message\n");
-    printf("Buf returned to client: %s\n", client_buf);
     parse_tcp_msg(username,
 		  &balance,
 		  &user_found,
@@ -276,10 +272,6 @@ int main(int argc, const char* argv[]){
 		  argc,
 		  &valid_transaction);
 
-    printf("Username: %s\n", username);
-    printf("Balance: %d\n", balance);
-    printf("User Found %d\n", user_found);
-    
     // Print result - (Error/Success)
     if(!user_found){
       printf("Bad Username: %s. User not found in database.\n", argv[1]);
@@ -288,13 +280,11 @@ int main(int argc, const char* argv[]){
       printf("The current balance of %s is: %d alicoins.\n",
 	     username,
 	     balance);
-    }
-    
+    }    
     break;
     
   case 2: // TXCOINS ./clientA Martin Luke 100 
     // Case Print Statements
-    printf("Action - TXCOINS\n");
     printf("%s has requested to transfer %s coins to %s\n",
 	   argv[1],
 	   argv[3],
@@ -303,24 +293,23 @@ int main(int argc, const char* argv[]){
     // Prepare message
     transfer_amount = atoi(argv[3]);
     snprintf(msg,
-	     MSGLEN,
+	     BUFLEN,
 	     "%s %s %s",
 	     argv[1],
 	     argv[2],
 	     argv[3]);
 
     // Send Message
-    send_tcp_msg(client_sock_fd,
-		 MSGLEN,
+    send_tcp_msg(client_socket_fd,
+		 BUFLEN,
 		 msg);
      
     // Receive Response
     recv_tcp_msg(client_buf,
 		 BUFLEN,
-		 client_sock_fd);
+		 client_socket_fd);
 
     // Parse Response
-    printf("Buf returned to client: %s\n", client_buf);
     parse_tcp_msg(username,
 		  &balance,
 		  &user_found,
@@ -333,13 +322,7 @@ int main(int argc, const char* argv[]){
 		  client_buf,
 		  argc,
 		  &valid_transaction);
-    printf("Sender: %s\n", sender);
-    printf("Sender Balance: %d\n", sender_balance);
-    printf("Sender Found: %d\n", sender_found);
-    printf("Receiver: %s\n", receiver);
-    printf("Receiver Balance: %d\n", receiver_balance);
-    printf("Receiver Found: %d\n", receiver_found);
-    
+  
     // Check return values
     check_transfer_return_values(sender,
 				 sender_balance,
@@ -352,23 +335,19 @@ int main(int argc, const char* argv[]){
     break;
 
   case 3: // TXLIST
-    printf("Transaction list comparison\n");
     // Send Data
     sprintf(msg, "%s", argv[1]);
-    send_tcp_msg(client_sock_fd,
-		 MSGLEN,
+    send_tcp_msg(client_socket_fd,
+		 BUFLEN,
 		 msg);
-    printf("TXLIST request was sent to the main server.\n");
+
     // Receive Data  
     recv_tcp_msg(client_buf,
 		 BUFLEN,
-		 client_sock_fd);
+		 client_socket_fd);
 
-    // Parse Received Data
-    printf("Buf returned to client: %s\n", client_buf);
- 
     // Print result - (Error/Success)
-    printf("Done Getting transaction list look in main server\n");
+    printf("Done Getting transaction list look for alichain.txt in the main server location.\n");
     break;
     
   default: // All other argc values error out
@@ -378,7 +357,7 @@ int main(int argc, const char* argv[]){
   }// End Switch
   
   // Close descriptor
-  close(client_sock_fd);
+  close(client_socket_fd);
 
   // Free memory
   free(msg);

@@ -17,17 +17,17 @@
 #include <signal.h>
 
 void
-check_number_of_args(int argc);
+verify_input_count(int argc);
 
 void
-check_if_getaddrinfo_failed(int getaddrinfo_result);
+getaddrinfo_error(int ret_val);
 
 void
-set_sock_preferences(struct addrinfo *sock_prefs);
+socket_setup(struct addrinfo *sock_prefs);
 
 void
-create_sock_and_connect(int *sock_fd,
-			struct addrinfo *poss_cnntns);
+connect_to_available_socket(int *sock_fd,
+			    struct addrinfo *cxns);
 
 void
 send_balance_enquiry(int sock_fd,
