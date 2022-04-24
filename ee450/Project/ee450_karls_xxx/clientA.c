@@ -3,7 +3,7 @@
 // --------------
 
 // Includes
-#include "../header/clientA.h"
+#include "clientA.h"
 
 // Macros
 #define MAINPORT "25711" // Main Server TCP Port

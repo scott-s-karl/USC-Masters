@@ -30,7 +30,9 @@ socket_setup(struct addrinfo *socket_prefs){
 void
 getaddrinfo_error(int ret_val){
   if(ret_val == -1){
-    fprintf(stderr, "Error: Backend Server B: %s\n", gai_strerror(ret_val));
+    fprintf(stderr,
+	    "getaddrinfo: %s\n",
+	    gai_strerror(ret_val));
     exit(1);
   }
 }
@@ -269,12 +271,12 @@ read_line(char *buf,
   char *line = fgets(buf, buf_len, *fin);
 
   // Check the return value
-  if(line == NULL){
+  /*if(line == NULL){
     perror("Error: Unable to read line\n");
   }
   if(ferror(*fin)){
     perror("ferror was thrown\n");
-  }
+    }*/
 
   // Remove the return character
   trim_return_char(buf);
@@ -574,7 +576,6 @@ int main(int argc, const char *argv[]){
 			    &receiver_found);
     
     // Try to receive from main
-    printf("Waiting for connection from main server\n");
     receive_and_store_from_main(buf,
 				&main_addr_len,
 				&main_addr,

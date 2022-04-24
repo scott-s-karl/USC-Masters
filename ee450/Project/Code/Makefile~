@@ -1,0 +1,15 @@
+# Make File Setup
+# Jacob Sorber tutorials referenced
+
+# Setup complier
+CC=gcc
+CFLAGS=-g -Wall
+
+# command for make
+
+serverM: serverM.o
+	$(CC) $(CFLAGS) -o serverM.o
+serverM.o:
+	$(CC) $(CFLAGS) -c serverM.c serverM.h
+clean:
+	rm *.o

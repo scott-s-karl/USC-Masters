@@ -1,0 +1,147 @@
+
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "unistd.h"
+
+#define NAMELEN 256
+#define BUFLEN 2048
+
+void
+get_request_type(char *buf,
+		 int *client_request_type){
+  int spaces = 0;
+  for(int i = 0; buf[i] != '\0'; i++){
+    if(buf[i] == ' '){
+      spaces++;
+    }
+  }
+  if(spaces == 0){
+    printf("No Spaces\n");
+    *client_request_type = 1;
+  }
+  else if(spaces == 2){
+    printf("2 Spaces\n");
+    *client_request_type = 2;
+  }
+  else{
+    printf("Bad Reqeust\n");
+    *client_request_type = 0;
+  }
+  printf("Client Request Type: %d\n", *client_request_type);
+}
+
+void
+parse_client_msg(int *client_request_type,
+		 char *username,
+		 char *sender,
+		 char *receiver,
+		 int *transfer_amount,
+		 char *buf){
+  get_request_type(buf,
+		   client_request_type); 
+  if(*client_request_type == 1){
+    sscanf(buf, "%s", username);
+  }
+  else if(*client_request_type == 2){
+    sscanf(buf, "%s %s %d", sender, receiver, transfer_amount);
+  }
+  else{
+    printf("Bad Arguments\n");
+  }
+}
+
+void
+open_transaction_file(FILE **fin){
+  
+  *fin = fopen("./../servers/block1.txt", "r");
+  if(*fin == NULL){
+    perror("Error: Could not open Server A file\n");
+    exit(1);
+  }
+}
+
+char *
+able_to_read_lines(char *buf,
+		   FILE **fin,
+		   int buf_len){
+  // Get a line
+  char *ret_val = fgets(buf, buf_len, *fin);
+
+  // Check the return value
+  if(ret_val == NULL && 0 != ferror(*fin)){
+    perror("Error: Unable to read line\n");
+  }
+  return ret_val;
+}
+
+void
+get_user_balance(char *username,
+		 int *balance,
+		 FILE **fin){
+  // Open the file for server A
+  open_transaction_file(fin);
+  
+  // Variables to save temp data for each line
+  char *sender = (char *)calloc(BUFLEN, sizeof(*sender));
+  char *receiver = (char *)calloc(BUFLEN, sizeof(*sender));
+  char *buf = (char *)calloc(BUFLEN, sizeof(*sender));
+  int transfer_amount;
+  int idx;
+    
+  // Loop through the lines in the file
+  while(able_to_read_lines(buf, fin, BUFLEN)){
+    printf("Line: %s\n", buf);
+  }
+}
+
+int main(int argc, const char *argv[]){
+ 
+  printf("Argument count: %d\n", argc);
+  for(int i = 0; i < argc; i++){
+    printf("Argument %d is: %s\n", i, argv[i]);
+  }
+  char *msg = (char *)calloc(256, sizeof(*msg));
+  if(argc == 4){
+    sprintf(msg, "%s %s %s", argv[1], argv[2], argv[3]);
+  }
+  else if(argc == 2){
+    sprintf(msg, "%s", argv[1]);  
+  }
+  else{
+    sprintf(msg, "%s", "Bad Arguments");
+  }
+  printf("%s\n\n", msg);
+
+  int client_request_type;
+  char *username = (char *)calloc(NAMELEN, sizeof(*username));
+  char *sender = (char *)calloc(NAMELEN, sizeof(*sender));
+  char *receiver = (char *)calloc(NAMELEN, sizeof(*receiver));
+  int transfer_amount;
+
+  parse_client_msg(&client_request_type,
+		   username,
+		   sender,
+		   receiver,
+		   &transfer_amount,
+		   msg);
+
+  printf("Request Type = %d\n", client_request_type);
+  printf("Username = %s\n", username);
+  printf("Sender = %s\n", sender);
+  printf("Receiver = %s\n", receiver);
+  printf("Transfer Amount = %d\n", transfer_amount);
+
+  char *cwd = (char *)calloc(1024, sizeof(*cwd));
+  getcwd(cwd, sizeof(cwd));
+  printf("Current Dir: %s\n", cwd);
+
+  int balance = 1000;
+  FILE *fin;
+  get_user_balance(username, &balance, &fin);
+
+  free(msg);
+  free(username);
+  free(sender);
+  free(receiver);
+}

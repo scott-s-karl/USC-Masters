@@ -3,7 +3,7 @@
 // ---------------
 
 // Include Statements
-#include "../header/serverM.h"
+#include "serverM.h"
 
 // Define Macros
 #define SVRAPORT "21711" // Port # ServerA runs on
@@ -725,7 +725,7 @@ valid_transaction(char *sender,
 void
 open_output_file(FILE **fout){
   // Open the output file for the transaction list
-  *fout = fopen("server_files/mainServer/alichain.txt","w+");
+  *fout = fopen("alichain.txt","w+");
 
   // Check if there was an error in opening said output file
   if(*fout == NULL){

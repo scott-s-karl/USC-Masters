@@ -1,12 +1,12 @@
 // Steven Karl
-// Client A
+// Client B
 // --------------
 
 // Includes
-#include "../header/clientA.h"
+#include "clientB.h"
 
 // Macros
-#define MAINPORT "25711" // Main Server TCP Port
+#define MAINPORT "26711" // Main Server TCP Port
 #define BUFLEN 2048
 
 // Local Functions
@@ -58,13 +58,13 @@ connect_to_available_socket(int *sock_fd,
     
     // Attempt to connect
     connect_return_value = connect(*sock_fd,
-			     cxn->ai_addr,
-			     cxn->ai_addrlen);
+				   cxn->ai_addr,
+				   cxn->ai_addrlen);
     
     // Check the return code
     if(connect_return_value == -1){
       close(*sock_fd);
-      perror("Error: Connection through socket failed");
+      perror("Error: Failed to connect to available socket");
       continue;
     }
     break;
@@ -72,7 +72,7 @@ connect_to_available_socket(int *sock_fd,
 
   // Check if at the end of possible connection without valid
   if(cxn == NULL){
-    fprintf(stderr, "Client A: Failed to connect\n");
+    fprintf(stderr, "Error: Failed to find an available socket\n");
     exit(2);
   }
 }
@@ -82,7 +82,7 @@ send_tcp(int sock_fd,
 	 char *buf){
   // Send and Check for errors
   if(send(sock_fd, buf, BUFLEN, 0) == -1){
-    perror("Failed to send initial client message to Main Server!\n");
+    perror("Error: Failed to send message to Main Server\n");
     close(sock_fd);
     exit(1);
   }
@@ -95,7 +95,7 @@ recv_tcp(char *buf,
   memset(buf, 0, BUFLEN * sizeof(*buf));
   int num_bytes = recv(sock_fd, buf, BUFLEN, 0);
   if(num_bytes == -1){
-    perror("Error: receiving client data\n");
+    perror("Error: Failed to receive from Main Server\n");
     exit(1);
   }
   // Make a cstring by adding nullbyte
@@ -104,17 +104,17 @@ recv_tcp(char *buf,
 
 void
 parse_tcp(char *username,
-	  int *balance,
-	  int *user_found,
-	  char *sender,
-	  int *sender_balance,
-	  int *sender_found,
-	  char *receiver,
-	  int *receiver_balance,
-	  int *receiver_found,
-	  char *client_buf,
-	  int request_type,
-	  int *valid_transaction){
+	      int *balance,
+	      int *user_found,
+	      char *sender,
+	      int *sender_balance,
+	      int *sender_found,
+	      char *receiver,
+	      int *receiver_balance,
+	      int *receiver_found,
+	      char *client_buf,
+	      int request_type,
+	      int *valid_transaction){
   // Check request type
   if(request_type == 2){
     sscanf(client_buf,
@@ -185,8 +185,7 @@ check_transfer_return_values(char *sender,
 }
 
 int
-get_request_type(int argc,
-		 const char* argv[]){
+get_request_type(int argc, const char* argv[]){
 
   // Check if the arg is TXLIST
   if(strncmp(argv[1], "TXLIST", 256) == 0){
@@ -225,14 +224,13 @@ int main(int argc, const char* argv[]){
   getaddrinfo_error(gai_ret_val);
   
   // Create socket and connect
-  connect_to_available_socket(&client_socket_fd,
-			      cxns);
+  connect_to_available_socket(&client_socket_fd, cxns);
   freeaddrinfo(cxns);
   
   // Boot Up Message
-  printf("The client A is up and running.\n");
+  printf("The client B is up and running.\n");
 
-  // Define buffer for sending and receiving
+   // Define buffer for sending and receiving
   char *msg = (char *)calloc(BUFLEN, sizeof(*msg));
   char *client_buf = (char *)calloc(BUFLEN, sizeof *client_buf);
   char *username = (char *)calloc(BUFLEN, sizeof *username);
@@ -277,7 +275,7 @@ int main(int argc, const char* argv[]){
 	      client_buf,
 	      argc,
 	      &valid_transaction);
-
+    
     // Print result - (Error/Success)
     if(!user_found){
       printf("Bad Username: %s. User not found in database.\n", argv[1]);
@@ -286,7 +284,8 @@ int main(int argc, const char* argv[]){
       printf("The current balance of %s is: %d alicoins.\n",
 	     username,
 	     balance);
-    }    
+    }
+    
     break;
     
   case 2: // TXCOINS ./clientA Martin Luke 100 
@@ -326,7 +325,7 @@ int main(int argc, const char* argv[]){
 	      client_buf,
 	      argc,
 	      &valid_transaction);
-  
+    
     // Check return values
     check_transfer_return_values(sender,
 				 sender_balance,
@@ -348,9 +347,9 @@ int main(int argc, const char* argv[]){
     // Receive Data  
     recv_tcp(client_buf,
 	     client_socket_fd);
-
+ 
     // Print result - (Error/Success)
-    printf("Done getting sorted transaction list look for alichain.txt in the main server location.\n");
+    printf("Done getting sorted transaction list look in main server\n");
     break;
     
   default: // All other argc values error out
@@ -368,6 +367,9 @@ int main(int argc, const char* argv[]){
   free(username);
   free(sender);
   free(receiver);
+
   // Return from main
   return 0;
 }
+
+ 

@@ -6,7 +6,6 @@
 #include "../header/clientB.h"
 
 // Macros
-#define CLIENTPORT "4141" // Client Port
 #define MAINPORT "26711" // Main Server TCP Port
 #define BUFLEN 2048
 
@@ -14,7 +13,7 @@
 void
 verify_input_count(int argc){
   if (argc < 2){
-    fprintf(stderr, "The client B program takes input!\n");
+    fprintf(stderr, "Input Error\n");
     exit(1);
   }
 }
@@ -23,7 +22,7 @@ void
 getaddrinfo_error(int ret_val){
   if(ret_val){
     fprintf(stderr,
-	    "getaddrinfo value is %s\n", gai_strerror(ret_val));
+	    "getaddrinfo: %s\n", gai_strerror(ret_val));
     exit(1);
   }
 }
@@ -79,11 +78,10 @@ connect_to_available_socket(int *sock_fd,
 }
 
 void
-send_tcp_msg(int sock_fd,
-	     int msg_len,
-	     char *msg){
+send_tcp(int sock_fd,
+	 char *buf){
   // Send and Check for errors
-  if(send(sock_fd, msg, msg_len, 0) == -1){
+  if(send(sock_fd, buf, BUFLEN, 0) == -1){
     perror("Error: Failed to send message to Main Server\n");
     close(sock_fd);
     exit(1);
@@ -91,14 +89,13 @@ send_tcp_msg(int sock_fd,
 }
 
 void
-recv_tcp_msg(char *buf,
-	     int buf_len,
-	     int sock_fd){
+recv_tcp(char *buf,
+	 int sock_fd){
   // Make sure your buf is empty
-  memset(buf, 0, buf_len * sizeof(*buf));
-  int num_bytes = recv(sock_fd, buf, buf_len, 0);
+  memset(buf, 0, BUFLEN * sizeof(*buf));
+  int num_bytes = recv(sock_fd, buf, BUFLEN, 0);
   if(num_bytes == -1){
-    perror("Error: Faile to receive from Main Server\n");
+    perror("Error: Failed to receive from Main Server\n");
     exit(1);
   }
   // Make a cstring by adding nullbyte
@@ -106,7 +103,7 @@ recv_tcp_msg(char *buf,
 }
 
 void
-parse_tcp_msg(char *username,
+parse_tcp(char *username,
 	      int *balance,
 	      int *user_found,
 	      char *sender,
@@ -173,6 +170,15 @@ check_transfer_return_values(char *sender,
 	   transfer_amount,
 	   receiver);
     printf("The current balance of %s is: %d alicoins.\n",
+	   sender,
+	   sender_balance);
+  }
+  else{
+    printf("%s successfully transferred %d alicoins to %s.\n",
+	   sender,
+	   transfer_amount,
+	   receiver);
+    printf("The current balance of %s is : %d alicoins.\n",
 	   sender,
 	   sender_balance);
   }
@@ -248,29 +254,27 @@ int main(int argc, const char* argv[]){
 
     // Send Data
     sprintf(msg, "%s", argv[1]);
-    send_tcp_msg(client_socket_fd,
-		BUFLEN,
-		msg);
+    send_tcp(client_socket_fd,
+	     msg);
     printf("%s sent a balance enquiry request to the main server\n", msg);
 
     // Receive Data  
-    recv_tcp_msg(client_buf,
-		 BUFLEN,
-		 client_socket_fd);
+    recv_tcp(client_buf,
+	     client_socket_fd);
 
     // Parse Received Data
-    parse_tcp_msg(username,
-		  &balance,
-		  &user_found,
-		  sender,
-		  &sender_balance,
-		  &sender_found,
-		  receiver,
-		  &receiver_balance,
-		  &receiver_found,
-		  client_buf,
-		  argc,
-		  &valid_transaction);
+    parse_tcp(username,
+	      &balance,
+	      &user_found,
+	      sender,
+	      &sender_balance,
+	      &sender_found,
+	      receiver,
+	      &receiver_balance,
+	      &receiver_found,
+	      client_buf,
+	      argc,
+	      &valid_transaction);
     
     // Print result - (Error/Success)
     if(!user_found){
@@ -301,28 +305,26 @@ int main(int argc, const char* argv[]){
 	     argv[3]);
 
     // Send Message
-    send_tcp_msg(client_socket_fd,
-		 BUFLEN,
-		 msg);
+    send_tcp(client_socket_fd,
+	     msg);
      
     // Receive Response
-    recv_tcp_msg(client_buf,
-		 BUFLEN,
-		 client_socket_fd);
+    recv_tcp(client_buf,
+	     client_socket_fd);
 
     // Parse Response
-    parse_tcp_msg(username,
-		  &balance,
-		  &user_found,
-		  sender,
-		  &sender_balance,
-		  &sender_found,
-		  receiver,
-		  &receiver_balance,
-		  &receiver_found,
-		  client_buf,
-		  argc,
-		  &valid_transaction);
+    parse_tcp(username,
+	      &balance,
+	      &user_found,
+	      sender,
+	      &sender_balance,
+	      &sender_found,
+	      receiver,
+	      &receiver_balance,
+	      &receiver_found,
+	      client_buf,
+	      argc,
+	      &valid_transaction);
     
     // Check return values
     check_transfer_return_values(sender,
@@ -336,23 +338,22 @@ int main(int argc, const char* argv[]){
     break;
 
   case 3: // TXLIST
+    printf("Client A sent a sorted list request to the main server.\n");
     // Send Data
     sprintf(msg, "%s", argv[1]);
-    send_tcp_msg(client_socket_fd,
-		 BUFLEN,
-		 msg);
-    printf("TXLIST request was sent to the main server.\n");
+    send_tcp(client_socket_fd,
+	     msg);
+
     // Receive Data  
-    recv_tcp_msg(client_buf,
-		 BUFLEN,
-		 client_socket_fd);
+    recv_tcp(client_buf,
+	     client_socket_fd);
  
     // Print result - (Error/Success)
-    printf("Done Getting transaction list look in main server\n");
+    printf("Done getting sorted transaction list look in main server\n");
     break;
     
   default: // All other argc values error out
-    fprintf(stderr, "Invlaid number of arguments\n");
+    fprintf(stderr, "Invalid number of arguments\n");
     break;
     
   }// End Switch

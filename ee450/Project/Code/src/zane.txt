@@ -1,0 +1,15 @@
+main:
+
+[1] send type 3 request to servA,B,C
+[2] start while loop with recvFrom until servA,B,C runs out of tx's to send
+
+
+servA,B,C:
+
+[1] recv type 3 request from Main
+[2] start while loop with sendTo until runs out of tx's to send
+
+Add transaction:
+[1] if its the first node and new tx idx is less then current insert before
+[2] if its bigger then current and less then previous insert before next
+[3] if its the last node insert after last node

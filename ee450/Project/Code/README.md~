@@ -1,0 +1,36 @@
+Name: Steven Scott Karl
+Student ID:
+
+What I have Completed:
+c. What you have done in the assignment, if you have completed the optional part (suffix). If it’s not mentioned, it will not be considered.
+
+Code Files Legend:
+d. What your code files are and what each one of them does. (Please do not repeat the project description, just name your code files and briefly mention what they do).
+
+Source Files:
+       1. serverM.c - Source code for the main server. Handles interactions with both clients. Talks to the three backend servers to get data from their text files or append to their text files.
+       2. serverA.c - Interacts with the main server in that it responds to requests that are made whether balance, transfer or list requests.Has access to block1.txt
+       3. serverB.c - Interacts with the main server in that it responds to requests that are made whether balance, transfer or list requests. Has access to block2.txt
+       4. serverC.c - Interacts with the main server in that it responds to requests that are made whether balance, transfer or list requests. Has access to block3.txt
+       5. clientA.c - Talks to the main server over tcp initiating requests and waiting for a response from the main server.
+       6. clientB.c - Talks to the main server over tcp initiating requests and waiting for a response from the main server.
+
+Header Files: 
+       1. serverM.h - Header file for the main server file. Contains all function definitions and descriptions 
+       2. serverA.h - Header file for the backend server A file. Contains all function definitions and descriptions 
+       3. serverB.h - Header file for the backend server B file. Contains all function definitions and descriptions 
+       4. serverC.h - Header file for the backend server C file. Contains all function definitions and descriptions 
+       5. clientA.h - Header file for the main server file. Contains all function definitions and descriptions 
+       6. clientB.h - Header file for the main server file. Contains all function definitions and descriptions 
+       
+
+Message Formats:
+e. The format of all the messages exchanged.
+
+Porject Idiosyncrasy:
+g. Any idiosyncrasy of your project. It should say under what conditions the
+project fails, if any.
+
+Reused Code:
+h. Reused Code: Did you use code from anywhere for your project? If not, say
+so. If so, say what functions and where they're from. (Also identify this with a comment in the source code.)

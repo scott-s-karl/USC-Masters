@@ -3,7 +3,7 @@
 // -----------------
 
 // Includes
-#include "../header/serverA.h"
+#include "serverA.h"
 
 // Macros
 #define SRVRAPORT "21711" // Port # ServerA runs on
@@ -233,7 +233,7 @@ bt_request_send_to_main(int sock_fd,
 void
 open_transaction_file(FILE **fin){
 
-  *fin = fopen("server_files/serverA/block1.txt", "r+");
+  *fin = fopen("block1.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server A file\n");
     exit(1);
