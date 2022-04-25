@@ -3,17 +3,18 @@
 // -----------------
 
 // Includes
-#include "serverA.h"
+#include "../header/serverA.h"
 
 // Macros
-#define SRVRAPORT "21711" // Port # ServerA runs on
+#define SERVERAPORT "21711"
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // Local Functions
 void
 verify_input_count(int argc){
   if(argc > 1){
-    fprintf(stderr, "Input Error\n");
+    fprintf(stderr, "Error: Input Error\n");
     exit(1);
   }
 }
@@ -127,7 +128,7 @@ get_request_type(char *buf,
     *client_request_type = 3;
   }
   else{
-    printf("Bad Reqeust\n");
+    printf("Error: Bad Reqeust\n");
     *client_request_type = 0;
   }
 }
@@ -212,7 +213,7 @@ bt_request_send_to_main(int sock_fd,
 	     max_transaction_index);
   }
   else{
-    printf("Error: Invalid request type, gather and send udp\n");
+    printf("Error: Invalid request type\n");
     exit(1);
   }
 
@@ -225,7 +226,7 @@ bt_request_send_to_main(int sock_fd,
 			 addr_len);
   // Check return
   if(num_bytes == -1){
-    perror("Error: Failed to send bytes to Main Server\n");
+    perror("Error: Failed to send to Main Server\n");
     exit(1);
   }
 }
@@ -233,7 +234,7 @@ bt_request_send_to_main(int sock_fd,
 void
 open_transaction_file(FILE **fin){
 
-  *fin = fopen("block1.txt", "r+");
+  *fin = fopen("server_files/serverA/block1.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server A file\n");
     exit(1);
@@ -244,7 +245,7 @@ void
 close_transaction_file(FILE **fin){
   int ret_val = fclose(*fin);
   if(ret_val != 0){
-    perror("Error: Could not close file properly\n");
+    perror("Error: Could not close file\n");
     exit(1);
   }
 }
@@ -261,24 +262,16 @@ trim_return_char(char *buf){
 
 char *
 read_line(char *buf,
-		   FILE **fin,
-		   int buf_len){
+	  FILE **fin,
+	  int buf_len){
   // Get a line
-  char *ret_val = fgets(buf, buf_len, *fin);
-
-  // Check the return value
-  /*if( ret_val == NULL){
-    perror("Error: Line was null\n");
-  }
-  if ( ferror(*fin) ){
-    perror("ferror was thrown\n");
-    }*/
+  char *line = fgets(buf, buf_len, *fin);
 
   // Remove the return character
   trim_return_char(buf);
 
-  // 
-  return ret_val;
+  // return the line to the while loop
+  return line;
 }
 
 void
@@ -370,7 +363,7 @@ lookup_server_data(FILE **fin,
     
   }
   else{
-    perror("Invalid request type\n");
+    perror("Error: Invalid request type\n");
     exit(1);
   }
 }
@@ -417,7 +410,7 @@ clear_session_variables(char *buf,
 void
 reset_server_file(FILE **fin){
   if(0 != fseek(*fin, 0L, SEEK_SET)){
-    perror("ERROR: Problem reseting Server A file.\n");
+    perror("ERROR: Problem resetting Server A file.\n");
     exit(1);
   }
 }
@@ -431,7 +424,7 @@ append_transaction_to_server_file(FILE **fin,
   
   // Get the cursor to the end of the file
   if (0 != fseek(*fin, 0L, SEEK_END)){
-    perror("ERROR: Problem appending to the server A file\n");
+    perror("ERROR: Problem appending to the Server A file\n");
     exit(1);
   }
   // Write the new transaction
@@ -492,7 +485,7 @@ send_simple_udp(int sock_fd,
 			 addr_len);
   // Check return
   if(num_bytes == -1){
-    perror("Error: Failed to send bytes to Main Server\n");
+    perror("Error: Failed to send to Main Server\n");
     exit(1);
   }
   // Return bytes sent
@@ -512,12 +505,12 @@ int main(int argc, const char *argv[]){
   struct addrinfo svr_a_socket_prefs;
   struct addrinfo *svr_a_cxns;
   struct sockaddr_storage main_addr;
-  socklen_t main_addr_len;
+  socklen_t main_addr_len = sizeof(struct sockaddr);
   
   // Setup cxn
   socket_setup(&svr_a_socket_prefs);
-  gai_ret_val = getaddrinfo(NULL,
-			    SRVRAPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERAPORT,
 			    &svr_a_socket_prefs,
 			    &svr_a_cxns);
   getaddrinfo_error(gai_ret_val);
@@ -528,7 +521,7 @@ int main(int argc, const char *argv[]){
   freeaddrinfo(svr_a_cxns);
 
   // Start Messages
-  printf("The Server A is up and running using UDP on port %s\n", SRVRAPORT);
+  printf("The Server A is up and running using UDP on port %s\n", SERVERAPORT);
 
   // Define while loop storage variables
  

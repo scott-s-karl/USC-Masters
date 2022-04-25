@@ -6,14 +6,15 @@
 #include "../header/clientB.h"
 
 // Macros
-#define MAINPORT "26711" // Main Server TCP Port
+#define MAINPORT "26711"
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // Local Functions
 void
 verify_input_count(int argc){
   if (argc < 2){
-    fprintf(stderr, "Input Error\n");
+    fprintf(stderr, "Error: Input Error\n");
     exit(1);
   }
 }
@@ -31,7 +32,7 @@ void
 socket_setup(struct addrinfo *socket_prefs){
   memset(socket_prefs, 0, sizeof(*socket_prefs)); // Empty
   socket_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
-  socket_prefs->ai_socktype = SOCK_STREAM; // UDP type
+  socket_prefs->ai_socktype = SOCK_STREAM; // TCP type
 }
 
 void
@@ -52,7 +53,7 @@ connect_to_available_socket(int *sock_fd,
     
     // Check socket return code
     if(*sock_fd == -1){
-      perror("Error: Socket creation failed");
+      perror("Error: Failed socket call\n");
       continue;
     }
     
@@ -64,7 +65,7 @@ connect_to_available_socket(int *sock_fd,
     // Check the return code
     if(connect_return_value == -1){
       close(*sock_fd);
-      perror("Error: Failed to connect to available socket");
+      perror("Error: Failed connect call\n");
       continue;
     }
     break;
@@ -72,7 +73,7 @@ connect_to_available_socket(int *sock_fd,
 
   // Check if at the end of possible connection without valid
   if(cxn == NULL){
-    fprintf(stderr, "Error: Failed to find an available socket\n");
+    fprintf(stderr, "Error: Failed to find cxn\n");
     exit(2);
   }
 }
@@ -217,7 +218,7 @@ int main(int argc, const char* argv[]){
   socket_setup(&socket_prefs);
   
   // Get and check addrinfo
-  gai_ret_val = getaddrinfo(NULL,
+  gai_ret_val = getaddrinfo(localhost,
 			    MAINPORT,
 			    &socket_prefs,
 			    &cxns);
@@ -371,5 +372,3 @@ int main(int argc, const char* argv[]){
   // Return from main
   return 0;
 }
-
- 

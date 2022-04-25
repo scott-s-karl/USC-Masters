@@ -3,17 +3,18 @@
 // --------------
 
 // Includes
-#include "clientA.h"
+#include "../header/clientA.h"
 
 // Macros
-#define MAINPORT "25711" // Main Server TCP Port
+#define MAINPORT "25711"
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // Local Functions
 void
 verify_input_count(int argc){
   if (argc < 2){
-    fprintf(stderr, "Input Error\n");
+    fprintf(stderr, "Error: Input Error\n");
     exit(1);
   }
 }
@@ -31,7 +32,7 @@ void
 socket_setup(struct addrinfo *socket_prefs){
   memset(socket_prefs, 0, sizeof(*socket_prefs)); // Empty
   socket_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
-  socket_prefs->ai_socktype = SOCK_STREAM; // UDP type
+  socket_prefs->ai_socktype = SOCK_STREAM; // TCP type
 }
 
 void
@@ -218,7 +219,7 @@ int main(int argc, const char* argv[]){
   socket_setup(&socket_prefs);
   
   // Get and check addrinfo
-  gai_ret_val = getaddrinfo(NULL,
+  gai_ret_val = getaddrinfo(localhost,
 			    MAINPORT,
 			    &socket_prefs,
 			    &cxns);

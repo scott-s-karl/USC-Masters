@@ -3,17 +3,18 @@
 // ----------------
 
 // Includes
-#include "serverB.h"
+#include "../header/serverB.h"
 
 // Macros
-#define SRVRBPORT "22711" // Port # ServerB runs on
+#define SERVERBPORT "22711"
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // Local Functions
 void
 verify_input_count(int argc){
   if(argc > 1){
-    fprintf(stderr, "The Backend Server B program doesn't take input!\n");
+    fprintf(stderr, "Error: Input Error\n");
     exit(1);
   }
 }
@@ -127,7 +128,7 @@ get_request_type(char *buf,
     *client_request_type = 3;
   }
   else{
-    printf("Bad Reqeust\n");
+    printf("Error: Bad Reqeust\n");
     *client_request_type = 0;
   }
 }
@@ -233,7 +234,7 @@ bt_request_send_to_main(int sock_fd,
 void
 open_transaction_file(FILE **fin){
 
-  *fin = fopen("block2.txt", "r+");
+  *fin = fopen("server_files/serverB/block2.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server B file.\n");
     exit(1);
@@ -268,14 +269,6 @@ read_line(char *buf,
 	  int buf_len){
   // Get a line
   char *line = fgets(buf, buf_len, *fin);
-
-  // Check the return value
-  /*if(line == NULL){
-    perror("Error: Unable to read line\n");
-  }
-  if(ferror(*fin)){
-    perror("ferror was thrown\n");
-    }*/
 
   // Remove the return character
   trim_return_char(buf);
@@ -376,7 +369,7 @@ lookup_server_data(FILE **fin,
     
   }
   else{
-    perror("Invalid request type\n");
+    perror("Error: Invalid request type\n");
     exit(1);
   }
 }
@@ -423,7 +416,7 @@ clear_session_variables(char *buf,
 void
 reset_server_file(FILE **fin){
   if(0 != fseek(*fin, 0L, SEEK_SET)){
-    perror("ERROR: Problem reseting Server A file.\n");
+    perror("ERROR: Problem resetting Server A file.\n");
     exit(1);
   }
 }
@@ -437,7 +430,7 @@ append_transaction_to_server_file(FILE **fin,
 
   // Get the cursor to the end of the file
   if (0 != fseek(*fin, 0L, SEEK_END)){
-    perror("ERROR: Problem appending to the server A file\n");
+    perror("ERROR: Problem appending to the Server A file\n");
     exit(1);
   }
 
@@ -499,7 +492,7 @@ send_simple_udp(int sock_fd,
 			 addr_len);
   // Check return
   if(num_bytes == -1){
-    perror("Error: Failed to send bytes to Main Server\n");
+    perror("Error: Failed to send to Main Server\n");
     exit(1);
   }
   // Return bytes sent
@@ -518,12 +511,12 @@ int main(int argc, const char *argv[]){
   struct addrinfo svr_b_socket_prefs;
   struct addrinfo *svr_b_cxns;
   struct sockaddr_storage main_addr;
-  socklen_t main_addr_len;
+  socklen_t main_addr_len = sizeof(struct sockaddr);
   
   // Setup cxn
   socket_setup(&svr_b_socket_prefs);
-  gai_ret_val = getaddrinfo(NULL,
-			    SRVRBPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERBPORT,
 			    &svr_b_socket_prefs,
 			    &svr_b_cxns);
   getaddrinfo_error(gai_ret_val);
@@ -534,7 +527,7 @@ int main(int argc, const char *argv[]){
   freeaddrinfo(svr_b_cxns);
 
   // Start Message
-  printf("The Server B is up and running using UDP on port %s\n", SRVRBPORT);
+  printf("The Server B is up and running using UDP on port %s\n", SERVERBPORT);
 
   // Define while loop storage variables
   int client_request_type = 999;
@@ -655,4 +648,4 @@ int main(int argc, const char *argv[]){
     free(buf);
     close_transaction_file(&fin);
   }// End While
-}
+} // End Main

@@ -3,24 +3,25 @@
 // ----------------
 
 // Includes
-#include "serverC.h"
+#include "../header/serverC.h"
 
 // Macros
-#define SRVRCPORT "23711" // Port # ServerC runs on
+#define SERVERCPORT "23711"
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // Local Functions
 void
 verify_input_count(int argc){
   if(argc > 1){
-    fprintf(stderr, "The Backend Server C program doesn't take input!\n");
+    fprintf(stderr, "Error: Input error\n");
     exit(1);
   }
 }
 
 void
 socket_setup(struct addrinfo *socket_prefs){
-  memset(socket_prefs, 0, sizeof *socket_prefs);
+  memset(socket_prefs, 0, sizeof *socket_prefs); // Empty
   socket_prefs->ai_family = AF_UNSPEC; // IPv4 or IPv6
   socket_prefs->ai_socktype = SOCK_DGRAM; // UDP
   socket_prefs->ai_flags = AI_PASSIVE; // Use my IP
@@ -125,11 +126,10 @@ get_request_type(char *buf,
     *client_request_type = 2;
   }
   else if(spaces == 0){
-    printf("Type 3 Request - get type\n");
     *client_request_type = 3;
   }
   else{
-    printf("Bad Reqeust\n");
+    printf("Error: Bad Reqeust\n");
     *client_request_type = 0;
   }
 }
@@ -235,7 +235,7 @@ bt_request_send_to_main(int sock_fd,
 void
 open_transaction_file(FILE **fin){
 
-  *fin = fopen("block3.txt", "r+");
+  *fin = fopen("server_files/serverC/block3.txt", "r+");
   if(*fin == NULL){
     perror("Error: Could not open Server C file\n");
     exit(1);
@@ -374,7 +374,7 @@ lookup_server_data(FILE **fin,
     reset_server_file(fin);
   }
   else{
-    perror("Invalid request type\n");
+    perror("Error: Invalid request type\n");
     exit(1);
   }
 }
@@ -495,7 +495,7 @@ send_simple_udp(int sock_fd,
 			 addr_len);
   // Check return
   if(num_bytes == -1){
-    perror("Error: Failed to send bytes to Main Server\n");
+    perror("Error: Failed to send to Main Server\n");
     exit(1);
   }
   // Return bytes sent
@@ -515,12 +515,12 @@ int main(int argc, const char *argv[]){
   struct addrinfo svr_c_socket_prefs;
   struct addrinfo *svr_c_cxns;
   struct sockaddr_storage main_addr;
-  socklen_t main_addr_len;
+  socklen_t main_addr_len = sizeof(struct sockaddr);
   
   // Setup cxn
   socket_setup(&svr_c_socket_prefs);
-  gai_ret_val = getaddrinfo(NULL,
-			    SRVRCPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERCPORT,
 			    &svr_c_socket_prefs,
 			    &svr_c_cxns);
   getaddrinfo_error(gai_ret_val);
@@ -531,7 +531,7 @@ int main(int argc, const char *argv[]){
   freeaddrinfo(svr_c_cxns);
 
   // Start Messages
-  printf("The Server C is up and running using UDP on port %s\n", SRVRCPORT);
+  printf("The Server C is up and running using UDP on port %s\n", SERVERCPORT);
 
   
   // Define while loop storage variables
@@ -656,4 +656,4 @@ int main(int argc, const char *argv[]){
     free(buf);
     close_transaction_file(&fin);
   }// End While
-}
+} // End Main

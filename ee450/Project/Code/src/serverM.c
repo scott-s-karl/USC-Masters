@@ -6,15 +6,15 @@
 #include "../header/serverM.h"
 
 // Define Macros
-#define SVRAPORT "21711" // Port # ServerA runs on
-#define SVRBPORT "22711" // Port # ServerB runs on
-#define SVRCPORT "23711" // Port # ServerC runs on
-#define MAINUDPPORT "24711" // Port # Main Server UDP runs on
-#define MAINTCPPORTA "25711" // Port # Main Server TCP runs on
-#define MAINTCPPORTB "26711" // Port # Main Server TCP runs on
-
-#define BACKLOG 10 // max len(pending connections queue) for listening
+#define SERVERAPORT "21711" 
+#define SERVERBPORT "22711" 
+#define SERVERCPORT "23711" 
+#define MAINUDPPORT "24711"
+#define MAINTCPPORTA "25711"
+#define MAINTCPPORTB "26711"
+#define BACKLOG 10
 #define BUFLEN 2048
+#define localhost "127.0.0.1"
 
 // ----------------
 // Local Functions
@@ -24,17 +24,17 @@ void
 verify_input_count(int argc){
   // Check the argc variable
   if (argc > 1){
-    fprintf(stderr, "Input Error\n");
+    fprintf(stderr, "Error: Input Error\n");
     exit(1);
   }
 }
 
 void
-getaddrinfo_error(int return_value){
-  if(return_value){
+getaddrinfo_error(int ret_val){
+  if(ret_val){
     fprintf(stderr,
 	    "getaddrinfo: %s\n",
-	    gai_strerror(return_value));
+	    gai_strerror(ret_val));
     exit(1);
   }
 }
@@ -45,6 +45,8 @@ tcp_socket_setup(struct addrinfo *socket_prefs){
   socket_prefs->ai_family = AF_UNSPEC; // don't care IPv4 or IPv6
   socket_prefs->ai_socktype = SOCK_STREAM; // TCP stream sockets
   socket_prefs->ai_flags = AI_PASSIVE; //fill in my IP for me
+  
+  
 }
 
 void
@@ -58,17 +60,17 @@ void
 get_available_socket(struct addrinfo **cxn,
 		     struct addrinfo *cxns){
   // Loop through all the results and connect to the first one we can
-  int socket_status;
+  int socket_ret_val;
   for(*cxn = cxns;
       *cxn != NULL;
       *cxn = (*cxn)->ai_next){
     // Attempt to create the socket
-    socket_status = socket((*cxn)->ai_family,
-			   (*cxn)->ai_socktype,
-			   0);
+    socket_ret_val = socket((*cxn)->ai_family,
+			    (*cxn)->ai_socktype,
+			    0);
     // Check the return code and continue else break out
-    if(socket_status == -1){
-      perror("Failed to create socket for this connection");
+    if(socket_ret_val == -1){
+      perror("Error: socket() call failed");
       continue;
     }
     // If we made it here a cxn was made so break out
@@ -78,11 +80,11 @@ get_available_socket(struct addrinfo **cxn,
 
 void
 tcp_bind_to_available_socket(int *sock_fd,
-		   struct addrinfo *cxns){
+			     struct addrinfo *cxns){
   /* Local Variables */
   int yes = 1; // non-zero signals a sock option will change
-  int bind_status; // Return code for bind call
-  int setsockopt_status; // Return code for setsockopt call
+  int bind_ret_val; // Return code for bind call
+  int setsockopt_ret_val; // Return code for setsockopt call
   struct addrinfo *cxn;
 
   /* Loop through possible connections and bind to first one we can */
@@ -95,30 +97,30 @@ tcp_bind_to_available_socket(int *sock_fd,
 		      cxn->ai_protocol);
     // Check the return code from the socket call
     if(*sock_fd == -1){
-      perror("maintcp: socket creation failed");
+      perror("Error: Socket() call failed");
       continue;
     }
 
     // With the socket created set options
-    setsockopt_status = setsockopt(*sock_fd,
-				   SOL_SOCKET,
-				   SO_REUSEADDR,
-				   &yes,
-				   sizeof(yes));
+    setsockopt_ret_val = setsockopt(*sock_fd,
+				    SOL_SOCKET,
+				    SO_REUSEADDR,
+				    &yes,
+				    sizeof(yes));
     // Check return code
-    if(setsockopt_status == -1){
-      perror("maintcp: setsockopt failed");
+    if(setsockopt_ret_val == -1){
+      perror("Error: setsockopt() call failed");
       exit(1);
     }
 
     // Socket is set now attempt to bind
-    bind_status = bind(*sock_fd,
-		       cxn->ai_addr,
-		       cxn->ai_addrlen);
+    bind_ret_val = bind(*sock_fd,
+			cxn->ai_addr,
+			cxn->ai_addrlen);
     // Check the bind status
-    if(bind_status == -1){
+    if(bind_ret_val == -1){
       close(*sock_fd);
-      perror("Error: bind failed");
+      perror("Error: bind() call failed");
       continue;
     }
     // Socket and bind complete break for first found
@@ -136,7 +138,7 @@ void
 udp_bind_to_available_socket(int *sock_fd,
 			     struct addrinfo *cxns){
   // Setup local variables
-  int bind_status;
+  int bind_return_value;
   struct addrinfo *cxn;
 
   // Loop through the possible connections and bind to the first available
@@ -154,20 +156,20 @@ udp_bind_to_available_socket(int *sock_fd,
     }
     
     // Attempt to bind
-    bind_status = bind(*sock_fd,
-		       cxn->ai_addr,
-		       cxn->ai_addrlen);
+    bind_return_value = bind(*sock_fd,
+			     cxn->ai_addr,
+			     cxn->ai_addrlen);
     // Check return code
-    if(bind_status == -1){
+    if(bind_return_value == -1){
       close(*sock_fd);
-      perror("Error: bind failed");
+      perror("Error: Unable to bind to the socket");
       continue;
     }
     break;
   }
   // Check if the cxn is null after going through all of the linked list
   if(cxn == NULL){
-    fprintf(stderr, "mainudp: fail to connect\n");
+    fprintf(stderr, "Error: Failed to find and connect to an available socket\n");
     exit(2);
   }
 }
@@ -176,14 +178,15 @@ void
 tcp_listen_for_cxn(int *sock_fd,
 		   int backlog){
   // Local variables
-  int listen_status;
+  int listen_ret_val;
 
   // Call to the listen - to start listening 
-  listen_status = listen(*sock_fd, backlog);
+  listen_ret_val = listen(*sock_fd,
+			  backlog);
 
   // Check the return code 
-  if(listen_status == -1){
-    perror("Error: Failed call to listen\n");
+  if(listen_ret_val == -1){
+    perror("Error: Failed call to listen()\n");
     exit(1);
   }
 }
@@ -220,48 +223,6 @@ get_in_addr(struct sockaddr *sa){
   }
   else{
     return &(((struct sockaddr_in6 *)sa)->sin6_addr);
-  }
-}
-
-int
-get_port(struct sockaddr *addr){
-  
-  // Check if the addr input is v4
-  if(addr->sa_family == AF_INET){
-    // Create memory to store result of inet_ntop
-    char *their_addr = (char *)calloc(INET_ADDRSTRLEN, sizeof(*their_addr));
-
-    // Convert the ip address to human readable form
-    inet_ntop(addr->sa_family,
-	      get_in_addr((struct sockaddr *)&addr),
-	      their_addr,
-	      INET_ADDRSTRLEN);
-    printf("Server: Got connection from %s\n", their_addr);
-
-    // Free up the memory created
-    free(their_addr);
-    return ((struct sockaddr_in *)&addr)->sin_port;
-  }
-  // Check if the addr input is v6
-  else if(addr->sa_family == AF_INET6){
-    // Create memory to store result of inet_ntop
-    char *their_addr = (char *)calloc(INET6_ADDRSTRLEN, sizeof(*their_addr));
-
-    // Convert the address to human readable form
-    inet_ntop(addr->sa_family,
-	      get_in_addr((struct sockaddr *)&addr),
-	      their_addr,
-	      INET6_ADDRSTRLEN);
-    printf("Server: Got connection from %s\n", their_addr);
-
-    // Free up the memory
-    free(their_addr);
-    return ((struct sockaddr_in6 *)&addr)->sin6_port;
-  }
-  // If not v4 or v6 return and error
-  else{ // Invalid
-    perror("Error: Not IPv4 or IPv6\n");
-    exit(1);
   }
 }
 
@@ -342,7 +303,7 @@ parse_client_msg(int *client_request_type,
     return;
   }
   else{
-    printf("Bad Arguments\n");
+    printf("Error: Bad Arguments\n");
   }
 }
 
@@ -386,7 +347,6 @@ bt_request_send_to_backend(int sock_fd,
   }
 
   // Send msg over udp
-  printf("Sending udp message to backend server\n");
   int num_bytes = sendto(sock_fd,
 			 buf,
 			 BUFLEN,
@@ -503,7 +463,6 @@ collect_backend_transactions(TxList *txlist,
 
     // Check for end
     if(strncmp(tx, "Done", BUFLEN) == 0){
-      
       break;
     }
     // Add to tx list
@@ -761,8 +720,8 @@ output_txlist(TxList *txlist){
       current = current->next){
     // Print to the file
     fprintf(fout,
-	     "%s\n",
-	     current->data);
+	    "%s\n",
+	    current->data);
   }
   // Close the file
   close_output_file(&fout);
@@ -836,8 +795,8 @@ int main(int argc, const char *argv[]){
   struct addrinfo *sva_cxn; // One of the items in list
   int sva_port; // Used later backend server side interface
   udp_socket_setup(&sva_sock_prefs); // AI_FAMILY/TYPE
-  gai_ret_val = getaddrinfo(NULL,
-			    SVRAPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERAPORT,
 			    &sva_sock_prefs,
 			    &sva_cxns); // setup structs
   getaddrinfo_error(gai_ret_val); // Check for non zero
@@ -850,8 +809,8 @@ int main(int argc, const char *argv[]){
   struct addrinfo *svb_cxns;
   int svb_port;
   udp_socket_setup(&svb_sock_prefs);
-  gai_ret_val = getaddrinfo(NULL,
-			    SVRBPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERBPORT,
 			    &svb_sock_prefs,
 			    &svb_cxns);
   getaddrinfo_error(gai_ret_val);
@@ -864,8 +823,8 @@ int main(int argc, const char *argv[]){
   struct addrinfo *svc_cxn;
   int svc_port;
   udp_socket_setup(&svc_sock_prefs);
-  gai_ret_val = getaddrinfo(NULL,
-			    SVRCPORT,
+  gai_ret_val = getaddrinfo(localhost,
+			    SERVERCPORT,
 			    &svc_sock_prefs,
 			    &svc_cxns);
   getaddrinfo_error(gai_ret_val);
@@ -874,7 +833,7 @@ int main(int argc, const char *argv[]){
 
   // Setup Main Server TCP Support Client A
   tcp_socket_setup(&tcp_a_sock_prefs);
-  gai_ret_val = getaddrinfo(NULL,
+  gai_ret_val = getaddrinfo(localhost,
 			    MAINTCPPORTA,
 			    &tcp_a_sock_prefs,
 			    &tcp_a_cxns);
@@ -882,7 +841,7 @@ int main(int argc, const char *argv[]){
 
   // Setup Main Server TCP Support Client B
   tcp_socket_setup(&tcp_b_sock_prefs);
-  gai_ret_val = getaddrinfo(NULL,
+  gai_ret_val = getaddrinfo(localhost,
 			    MAINTCPPORTB,
 			    &tcp_b_sock_prefs,
 			    &tcp_b_cxns);
@@ -890,7 +849,7 @@ int main(int argc, const char *argv[]){
 
   // Setup Main Server UDP Support
   udp_socket_setup(&udp_sock_prefs);
-  gai_ret_val = getaddrinfo(NULL,
+  gai_ret_val = getaddrinfo(localhost,
 			    MAINUDPPORT,
 			    &udp_sock_prefs,
 			    &udp_cxns);
@@ -1005,9 +964,9 @@ int main(int argc, const char *argv[]){
 	continue;
       }
 
-      // Port/ Where connection came from
-      //client_a_port = get_port((struct sockaddr *)&client_a_addr);
+      // Port Where connection came from
       client_a_port = ((struct sockaddr_in *)&client_a_addr)->sin_port;
+
       // From bgnet forking
       if(client_a_fd != -1){ // this is the child process
 	// Receive the msg from clientA
@@ -1040,7 +999,7 @@ int main(int argc, const char *argv[]){
 	   state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
 	}
 	else{ // Invalid query
-	  printf("Invalid Query\n");
+	  printf("Error: Invalid Query\n");
 	}	
       }
       break;
@@ -1106,8 +1065,8 @@ int main(int argc, const char *argv[]){
       }
 
       // Port/ Where connection came from
-      //client_b_port = get_port((struct sockaddr *)&client_b_addr);
       client_b_port = ((struct sockaddr_in *)&client_b_addr)->sin_port;
+
       // From bgnet forking
       if(client_b_fd != -1){ // this is the child process
 	// Receive the msg from clientA
@@ -1140,7 +1099,7 @@ int main(int argc, const char *argv[]){
 	   state = (num_bytes_recv != -1 ? MAINTOSA : CTOMAIN);
 	}
 	else{ // Invalid query
-	  printf("Invalid Query\n");
+	  printf("Error: Invalid Query\n");
 	}	
       }
       break;
@@ -1196,8 +1155,8 @@ int main(int argc, const char *argv[]){
     case MAINTOSA: // Main to Server A
 
       // Get the port server A
-      // sva_port = get_port((struct sockaddr *)sva_cxn->ai_addr);
       sva_port = ((struct sockaddr_in *)&sva_cxn->ai_addr)->sin_port;
+
       // Check the type of request to send
       if(client_request_type != 3){
 	num_bytes_sent = bt_request_send_to_backend(main_server_udp_fd,
@@ -1287,8 +1246,8 @@ int main(int argc, const char *argv[]){
     case MAINTOSB: // Main to Server B
 
       // Get the port server A
-      //svb_port = get_port((struct sockaddr *)svb_cxn->ai_addr);
       svb_port = ((struct sockaddr_in *)&svb_cxn->ai_addr)->sin_port;
+
       // Check the type of request to send
       if(client_request_type != 3){
 	num_bytes_sent = bt_request_send_to_backend(main_server_udp_fd,
@@ -1378,8 +1337,8 @@ int main(int argc, const char *argv[]){
     case MAINTOSC: // Main to Server C
 
       // Get the port server C
-      //svc_port = get_port((struct sockaddr *)svc_cxn->ai_addr);
       svc_port = ((struct sockaddr_in *)&svc_cxn->ai_addr)->sin_port;
+
       // Check the type of request to send
       if(client_request_type != 3){
 	num_bytes_sent = bt_request_send_to_backend(main_server_udp_fd,
@@ -1487,7 +1446,7 @@ int main(int argc, const char *argv[]){
 	  append_transaction = 1;
 	}
 	else{
-	  printf("Invalid Transaction\n");
+	  printf("Error: Invalid Transaction\n");
 	  state = (current_client == 1) ? MAINTOCA : MAINTOCB;
 	  break;
 	}
@@ -1504,7 +1463,7 @@ int main(int argc, const char *argv[]){
 	break;
       }
       else{
-	printf("Other Case.\n");
+	printf("Error: Bad request\n");
 	state = (current_client == 1) ? MAINTOCA : MAINTOCB;
       }		
       break;

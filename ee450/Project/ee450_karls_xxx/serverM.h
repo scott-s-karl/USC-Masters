@@ -163,19 +163,6 @@ void *
 get_in_addr(struct sockaddr *sa);
 
 /*
-  Desc: Returns the port based on the addrinfo ipv4 or ipv6
-  This was taken line for line from beej guide and 
-  packaged into a function (Client-Server Background pg 33).
-  Added support for v4 and v6 though.
-  Inputs Args:
-  1. addr -> addr that made the connection that we want the port for
-  Returns Args:
-  1. port -> The port that connected to the
-*/
-int
-get_port(struct sockaddr *addr);
-
-/*
   Desc: Recieves from a specific file descriptor
   and saves the data into a buffer.This was taken line for line 
   from beej guide and packaged into a function (Client-Server Background pg 35).

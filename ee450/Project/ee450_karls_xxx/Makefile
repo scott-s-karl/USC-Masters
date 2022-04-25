@@ -40,4 +40,4 @@ clientA.o: clientA.c clientA.h
 clientB.o: clientB.c clientB.h
 	$(CC) $(CFLAGS) -c $< -o $@
 clean:
-	rm *.o* *~ *.exe* 
+	rm *.o* *~ serverA serverB serverC serverM clientA clientB 
