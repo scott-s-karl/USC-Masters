@@ -1,0 +1,32 @@
+Steven Karl
+CSCI576 - Multimedia Systems Design
+Assignment 1 - TitleXXX
+---------------------------------------
+
+Overview:
+---------------------
+
+
+Directory Structure:
+---------------------
+Files/Folders:
+	src - contains all of the c code for the project
+	hdr - contains all the of the header files for the project
+	bin - location where all of the binary files will be generated (Empty by default)
+	Makefile - File that cleans and compiles the source code to create or remove binary files
+	README - This current file that explains the details of the project
+
+How to clean:
+---------------------
+From the root directory of the project:
+     make clean - This will remove all of the binary files from the bin folder.
+
+How to compile:
+---------------------
+From the root directory of the project:
+     make all - This will compile the project and create the necessary binary files and object files in the bin and obj folders respectively. This is necessary to do before attempting to run. 
+
+How to run:
+---------------------
+From the root directory of the project: 
+     
