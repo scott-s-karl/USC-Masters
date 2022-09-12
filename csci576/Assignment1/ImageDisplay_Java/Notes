@@ -1,0 +1,30 @@
+Program Flow:
+------------------
+1. Start Program
+2. Check arguments
+   1. Make sure there are 7 inputs
+3. Parse arguments into usable variables
+4. Create 2 empty images
+   1. Original image
+   2. Scaled image
+5. Read the RGB file into both images
+
+For the original:
+1. Wait until other operations are complete
+2. Done
+
+For the scaled:
+1. Convert the rgb values into the yuv space
+2. Do subsampling according to the inputs
+3. Adjust after subsampling
+   1. fill in the missing data with averages from the neighboring pixels
+4. Convert the yuv values back to rgb values
+5. Preform scaling on the rgb image using:
+   1. scale_w
+   2. scale_h
+   3. antialiasing flag
+6. Done
+
+Back together:
+1. Display the original image
+2. Display the scaled image
