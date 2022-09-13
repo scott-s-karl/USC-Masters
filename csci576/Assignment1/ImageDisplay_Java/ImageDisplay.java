@@ -148,11 +148,11 @@ public class ImageDisplay {
     }
 
     public static double[] subsample_yuv_arr(int y_sample,
-						int u_sample,
-						int v_sample,
-						int width,
-						int height,
-						double[] arr){
+					     int u_sample,
+					     int v_sample,
+					     int width,
+					     int height,
+					     double[] arr){
 	// Loop through the arr by 3
 	int mat_idx;
 	int mod_idx = 0;
@@ -174,7 +174,7 @@ public class ImageDisplay {
 					       double[] arr){
 	// Define Variables
 	int mat_idx;
-	int column_idx = 1;
+	int column_idx = 0;
 	int rgb_idx;
 	int sub_idx;
 	int cur_sub_val;
@@ -194,12 +194,12 @@ public class ImageDisplay {
 		    avg_val = 0;
 		    
 		    // Collect first sample behind before the wall
-		    if(column_idx - 1 > 0 && arr[rgb_idx-3] != 999){
+		    if(column_idx > 0 && arr[rgb_idx-3] != 999){
 			avg_val += arr[rgb_idx-3];
 		    }
 		    
 		    // Collect first sample in front before the wall
-		    if(column_idx + 1 < width && arr[rgb_idx+3] != 999){
+		    if(column_idx < width-1 && arr[rgb_idx+3] != 999){
 			avg_val += arr[rgb_idx+3];
 		    }
 		    
@@ -211,35 +211,126 @@ public class ImageDisplay {
 		}
 		sub_idx++;
 	    }
-	    column_idx = column_idx < width ? column_idx++ : 0;
+	    column_idx = column_idx < width-1 ? column_idx++ : 0;
 	}
 	return output_arr;
     }
 
-    public static void scale_rgb_image(int width,
-				       int height,
-				       float scale_w,
-				       float scale_h,
-				       int antialias_flag,
-				       double[] arr){
-	/*int new_width = (int) (width * scale_w);
-	int new_height = (int) (height * scale_h);
-	int mat_idx;
-	int mat_len = width*height*3;
-	int new_mat_len = new_width*new_height*3;
-	double[] output_arr = new double[new_mat_len];
-	// Loop through based on new scale size
-	for(mat_idx = 0; mat_idx < mat_len; mat_idx+=3){
-	    if(antialias_flag == 0){
-		output_arr[mat_idx] = arr[mat_idx];
-		
-	    }
-	    else{
-		
+    public static double[] collect_rgb_from_neighbors(double[] input_arr,
+						      int col,
+						      int row,
+						      int usa_idx,
+						      int width,
+						      int height){
+
+	// Define tracker
+	double avg_r = 0;
+	double avg_g = 0;
+	double avg_b = 0;
+	double avg_denom_count = 0;
+	// Get above
+	if(row-1 > 0){
+	    avg_r += input_arr[usa_idx-width];
+	    avg_g += input_arr[(usa_idx-width)+1];
+	    avg_b += input_arr[(usa_idx-width)+2];
+	    avg_denom_count++;
+	}
+
+	// Get below
+	if(row+1 < height - 1){
+	    avg_r += input_arr[usa_idx+width];
+	    avg_g += input_arr[(usa_idx+width)+1];
+	    avg_b += input_arr[(usa_idx+width)+2];
+	    avg_denom_count++;
+	}
+
+	// Get left
+	if(col-1 > 0){
+	    avg_r += input_arr[usa_idx-3];
+	    avg_g += input_arr[(usa_idx-3)+1];
+	    avg_b += input_arr[(usa_idx-3)+2];
+	    avg_denom_count++;
+	}
+
+	//Get right
+	if(col + 1 < width - 1){
+	   avg_r += input_arr[usa_idx+3];
+	   avg_g += input_arr[(usa_idx+3)+1];
+	   avg_b += input_arr[(usa_idx+3)+2];
+	   avg_denom_count++;
+	}
+	
+	avg_r /= avg_denom_count;
+	avg_g /= avg_denom_count;
+	avg_b /= avg_denom_count;
+	double[] output_arr = {avg_r, avg_g, avg_b};
+
+	return output_arr;
+    }
+
+    public static double[] scale_rgb_image(int width,
+					   int height,
+					   float scale_w,
+					   float scale_h,
+					   int antialias_flag,
+					   double[] input_arr){
+	int new_width = (int) Math.rint(width * scale_w);
+	int new_height = (int) Math.rint(height * scale_h);
+	int usa_idx;
+	int sa_idx = 0;
+	int usa_len = width*height*3;
+	int sa_len = new_width*new_height*3;
+
+	double[] output_arr = new double[sa_len];
+	double[] sampled_rgb_arr = new double[3];
+	int scale_w_factor = (int)Math.rint(1/scale_w);
+	int scale_h_factor = (int)Math.rint(1/scale_h);
+	int col = 0;
+	int row = 0;
+	if(antialias_flag == 0){
+	    for(usa_idx = 0; usa_idx < usa_len; usa_idx +=3){
+		if(col % scale_w_factor == 0 && row % scale_h_factor == 0){
+		    output_arr[sa_idx] = input_arr[usa_idx];
+		    output_arr[sa_idx+1] = input_arr[usa_idx+1];
+		    output_arr[sa_idx+2] = input_arr[usa_idx+2];
+		    sa_idx+=3;
+		}
+		if(col < (width - 1)){
+		    col++;
+		}
+		else{
+		    col = 0;
+		    row++;
+		}
 	    }
 	}
-	return output_arr;*/
-	System.out.println("Incomplete");
+	else{
+	    // Loop through
+	    for(usa_idx = 0; usa_idx < usa_len; usa_idx +=3){
+		if(col % scale_w_factor == 0 && row % scale_h_factor == 0){
+		    // Collect the neighboring rgb values up, right, left, and down
+		    sampled_rgb_arr = collect_rgb_from_neighbors(input_arr,
+								 col,
+								 row,
+								 usa_idx,
+								 width,
+								 height);
+		    // Populate output with the neighboring averages
+		    output_arr[sa_idx] = sampled_rgb_arr[0];
+		    output_arr[sa_idx+1] = sampled_rgb_arr[1];
+		    output_arr[sa_idx+2] = sampled_rgb_arr[1];
+		    sa_idx+=3;
+		}
+		if(col < (width - 1)){
+		    col++;
+		}
+		else{
+		    col = 0;
+		    row++;
+		}
+	    }
+	}
+	return output_arr;
     }
     
     public void showIms(BufferedImage image, String frame_title){
@@ -271,6 +362,7 @@ public class ImageDisplay {
 				       double[] yuv,
 				       double[] sub_yuv,
 				       double[] adj_yuv,
+				       double[] unscaled_rgb,
 				       double[] final_rgb){
 	// Loop through the arr
 	int mat_idx;
@@ -280,6 +372,7 @@ public class ImageDisplay {
 	    System.out.println("Initial YUV: " + yuv[mat_idx]+ " " + yuv[mat_idx+1]+ " " + yuv[mat_idx+2]);
 	    System.out.println("Subsampled YUV: " + sub_yuv[mat_idx]+ " " + sub_yuv[mat_idx+1]+ " " + sub_yuv[mat_idx+2]);
 	    System.out.println("Adjusted YUV: " + adj_yuv[mat_idx]+ " " + adj_yuv[mat_idx+1]+ " " + adj_yuv[mat_idx+2]);
+	    System.out.println("Unscaled RGB: " + unscaled_rgb[mat_idx]+ " " + unscaled_rgb[mat_idx+1]+ " " + unscaled_rgb[mat_idx+2]);
 	    System.out.println("Final RGB: " + final_rgb[mat_idx]+ " " + final_rgb[mat_idx+1]+ " " + final_rgb[mat_idx+2]);
 	    System.out.println("");
 	    System.out.println("");
@@ -324,7 +417,7 @@ public class ImageDisplay {
 	ImageDisplay initial_image = new ImageDisplay();
 	ImageDisplay scaled_image = new ImageDisplay();
 	BufferedImage initialImage = new BufferedImage(width, height,BufferedImage.TYPE_INT_RGB);
-	BufferedImage scaledImage = new BufferedImage(width, height,BufferedImage.TYPE_INT_RGB);
+	BufferedImage scaledImage = new BufferedImage(new_width, new_height,BufferedImage.TYPE_INT_RGB);
 
 	// Create arrays to hold changing values
 	double[] initial_rgb_arr = new double[width*height*3];
@@ -352,30 +445,33 @@ public class ImageDisplay {
 	// Convert the scaled image back to the RGB Space	
 	unscaled_rgb_arr = convert_yuv_arr_to_rgb_arr(width, height, adjusted_yuv_arr);
 
+	
+	// Scale the RGB image with scale_w and scale_h and alias flag
+	final_rgb_arr = scale_rgb_image(width,
+					height,
+					scale_w,
+					scale_h,
+					antialias_flag,
+					unscaled_rgb_arr);
+
+	
 	// Check arr
 	display_results(initial_rgb_arr,
 			yuv_arr,
 			subsampled_yuv_arr,
 			adjusted_yuv_arr,
-			unscaled_rgb_arr);
+			unscaled_rgb_arr,
+			final_rgb_arr);
 	
-	// Scale the RGB image with scale_w and scale_h and alias flag
-	/*final_rgb_arr = scale_rgb_image(width,
-	  height,
-			scale_w,
-			scale_h,
-			antialias_flag,
-			unscaled_rgb_arr);
-	*/
 	// Show image
 	display_pixel_image(initialImage,
 			    initial_rgb_arr,
 			    width,
 			    height);
 	display_pixel_image(scaledImage,
-			    unscaled_rgb_arr,
-			    width,
-			    height);
+			    final_rgb_arr,
+			    new_width,
+			    new_height);
 	initial_image.showIms(initialImage, "Initial");
 	scaled_image.showIms(scaledImage, "Scaled");
     }
