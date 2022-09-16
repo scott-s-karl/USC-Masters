@@ -155,17 +155,42 @@ public class ImageDisplay {
 					     double[] arr){
 	// Loop through the arr by 3
 	int mat_idx;
-	int mod_idx = 0;
+	int col = 0;
 	int mat_len = (width*height*3);
 	double[] output_arr = new double[width*height*3];
 	for(mat_idx = 0; mat_idx < mat_len; mat_idx += 3){
 	    // Check if the current YUV set needs to be replaced
-	    output_arr[mat_idx] = (mod_idx % y_sample != 0) ? 999 : arr[mat_idx];
-	    output_arr[mat_idx+1] = (mod_idx % u_sample != 0) ? 999 : arr[mat_idx+1];
-	    output_arr[mat_idx+2] = (mod_idx % v_sample != 0) ? 999 : arr[mat_idx+2];
-	    mod_idx++;
+	    output_arr[mat_idx] = (col % y_sample != 0) ? 999 : arr[mat_idx];
+	    output_arr[mat_idx+1] = (col % u_sample != 0) ? 999 : arr[mat_idx+1];
+	    output_arr[mat_idx+2] = (col % v_sample != 0) ? 999 : arr[mat_idx+2];
+	    if(col < width - 1){
+		col++;
+	    }
+	    else{
+		col = 0;
+	    }
 	}
 	return output_arr;
+    }
+
+    public static double get_next_column(int width,
+					 int start_idx,
+					 int column,
+					 double prev_value,
+					 double[] arr){
+				 
+	int hop_count = 0;
+	double output_diff = -999;
+	// Loop through arry until find data or end of row
+	for(int arr_idx = start_idx; column < width; arr_idx+=3){
+	    if(arr[arr_idx] != 999){
+		output_diff = ((arr[arr_idx] - prev_value)/(hop_count+1));
+		break;
+	    }
+	    hop_count++;
+	    column++;
+	}
+	return output_diff;
     }
 
     public static double[] adjust_yuv_sampling(int width,
@@ -173,8 +198,11 @@ public class ImageDisplay {
 					       int[] subsample_arr,
 					       double[] arr){
 	// Define Variables
+	double prev_col_data;
+	double next_col_diff;
 	int mat_idx;
 	int column_idx = 0;
+	int row = 0;
 	int rgb_idx;
 	int sub_idx;
 	int cur_sub_val;
@@ -190,28 +218,30 @@ public class ImageDisplay {
 		    // Get the current yuv subsample factor
 		    cur_sub_val = subsample_arr[sub_idx];
 
-		    // Sampled Value
-		    avg_val = 0;
-		    
-		    // Collect first sample behind before the wall
-		    if(column_idx > 0 && arr[rgb_idx-3] != 999){
-			avg_val += arr[rgb_idx-3];
+		    // Get the replacement value    
+		    prev_col_data = column_idx > 0 ? output_arr[rgb_idx-3] : 0;
+		    next_col_diff = get_next_column(width, rgb_idx, column_idx, prev_col_data, arr);
+
+		    // Assign output value based on prev_next
+		    if(next_col_diff == -999){
+			output_arr[rgb_idx] = prev_col_data + (output_arr[rgb_idx-3] - output_arr[rgb_idx-6]);
 		    }
-		    
-		    // Collect first sample in front before the wall
-		    if(column_idx < width-1 && arr[rgb_idx+3] != 999){
-			avg_val += arr[rgb_idx+3];
+		    else{
+			output_arr[rgb_idx] = prev_col_data + next_col_diff;
 		    }
-		    
-		    // Average the two samples
-		    output_arr[rgb_idx] = (avg_val/2);
 		}
 		else{
 		    output_arr[rgb_idx] = arr[rgb_idx];
 		}
 		sub_idx++;
 	    }
-	    column_idx = column_idx < width-1 ? column_idx++ : 0;
+	    if(column_idx < width - 1){
+		column_idx++;
+	    }
+	    else{
+		column_idx = 0;
+		row++;
+	    }
 	}
 	return output_arr;
     }
@@ -285,22 +315,54 @@ public class ImageDisplay {
 	double[] sampled_rgb_arr = new double[3];
 	int scale_w_factor = (int)Math.rint(1/scale_w);
 	int scale_h_factor = (int)Math.rint(1/scale_h);
+	System.out.println(scale_w_factor);
+	System.out.println(scale_h_factor);
 	int col = 0;
 	int row = 0;
+	int new_col = 0;
+	int new_row = 0;
+
+	// If no antialiasing
 	if(antialias_flag == 0){
+	    // Loop through the input arr until end
 	    for(usa_idx = 0; usa_idx < usa_len; usa_idx +=3){
+		// Check if the current column and row are meant to be kept
 		if(col % scale_w_factor == 0 && row % scale_h_factor == 0){
+		    // Populate the output array with the r g b values from the current input array column
 		    output_arr[sa_idx] = input_arr[usa_idx];
 		    output_arr[sa_idx+1] = input_arr[usa_idx+1];
 		    output_arr[sa_idx+2] = input_arr[usa_idx+2];
-		    sa_idx+=3;
+
+		    // Update the input array index because we just filled an r g b set
+		    sa_idx +=3;
+
+		    // Update the column if we are not at the end of the row
+		    if(new_col < new_width - 1){
+			new_col++;
+		    }
+		    // We are at the end of a output row reset values
+		    // output row and column input row and column
+		    else{
+			col = 0;
+			new_col = 0;
+			row++;
+			new_row++;
+			usa_idx = (width * 3 * row)-3;
+			continue;
+		    }
 		}
-		if(col < (width - 1)){
+		// Update the input array column as we go through it
+		if(col < width - 1){
 		    col++;
 		}
+		// We are at the end of an input array row reset values
 		else{
 		    col = 0;
 		    row++;
+		}
+		// Exit if we filled up the output
+		if(sa_idx >= sa_len){
+		    break;
 		}
 	    }
 	}
@@ -318,8 +380,12 @@ public class ImageDisplay {
 		    // Populate output with the neighboring averages
 		    output_arr[sa_idx] = sampled_rgb_arr[0];
 		    output_arr[sa_idx+1] = sampled_rgb_arr[1];
-		    output_arr[sa_idx+2] = sampled_rgb_arr[1];
+		    output_arr[sa_idx+2] = sampled_rgb_arr[2];
 		    sa_idx+=3;
+		    if(sa_idx >= sa_len){
+			System.out.println("TEST");
+			break;
+		    }
 		}
 		if(col < (width - 1)){
 		    col++;
@@ -356,6 +422,7 @@ public class ImageDisplay {
 	frame.pack();
 	frame.setVisible(true);
 	frame.setTitle(frame_title);
+	frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
     public static void display_results(double[] init_rgb,
@@ -366,7 +433,7 @@ public class ImageDisplay {
 				       double[] final_rgb){
 	// Loop through the arr
 	int mat_idx;
-	int mat_len = 13;
+	int mat_len = 60;
 	for(mat_idx = 0; mat_idx < mat_len; mat_idx+=3){
 	    System.out.println("Initial RGB: " + init_rgb[mat_idx]+ " " + init_rgb[mat_idx+1]+ " " + init_rgb[mat_idx+2]);
 	    System.out.println("Initial YUV: " + yuv[mat_idx]+ " " + yuv[mat_idx+1]+ " " + yuv[mat_idx+2]);
@@ -456,12 +523,12 @@ public class ImageDisplay {
 
 	
 	// Check arr
-	display_results(initial_rgb_arr,
+	/*display_results(initial_rgb_arr,
 			yuv_arr,
 			subsampled_yuv_arr,
 			adjusted_yuv_arr,
 			unscaled_rgb_arr,
-			final_rgb_arr);
+			final_rgb_arr);*/
 	
 	// Show image
 	display_pixel_image(initialImage,
