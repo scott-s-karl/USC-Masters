@@ -8,8 +8,8 @@ import javax.swing.*;
 public class ImageDisplay {
 
     static int width = 1920; // default image width and height
-    static int height = 1080;
-    
+    static int height = 1080; // default image height
+
     /** Read Image RGB
      *  Reads the image of given width and height at the given imgPath into the provided BufferedImage.
      */
@@ -41,7 +41,7 @@ public class ImageDisplay {
 				byte r = bytes[ind];
 				byte g = bytes[ind+height*width];
 				byte b = bytes[ind+height*width*2];
-				
+
 				// Scale the rgb values to 0 255
 				output_rgb_arr[mat_idx] = (r & 0xff);
 				output_rgb_arr[mat_idx+1] = (g & 0xff);
@@ -52,11 +52,11 @@ public class ImageDisplay {
 		    }
 		return output_rgb_arr;
 	    }
-	catch (FileNotFoundException e) 
+	catch (FileNotFoundException e)
 	    {
 		e.printStackTrace();
-	    } 
-	catch (IOException e) 
+	    }
+	catch (IOException e)
 	    {
 		e.printStackTrace();
 	    }
@@ -81,7 +81,7 @@ public class ImageDisplay {
 	output_RGB_arr[0] = (y) + (0.956*u) + (0.621*v);
 	output_RGB_arr[1] = (y) + (-0.272*u) + (-0.647*v);
 	output_RGB_arr[2] = (y) + (-1.106*u) + (1.703)*v;
-	
+
 	return output_RGB_arr;
     }
 
@@ -94,11 +94,13 @@ public class ImageDisplay {
 	    {
 		for(int x = 0; x < width; x++)
 		    {
-			int r = (int) Math.max(0, Math.min(255,Math.round(arr[mat_idx])));
-			int g = (int) Math.max(0, Math.min(255,Math.round(arr[mat_idx+1])));
-			int b = (int) Math.max(0, Math.min(255,Math.round(arr[mat_idx+2])));
+			// Get r g and b but clamp and round the numbers (0-255) -> disscussion comment fixes (-) and (+)
+			int r = (int) Math.min(255,Math.round(arr[mat_idx])) > 0 ? (int) Math.min(255,Math.round(arr[mat_idx])) : 0;
+			int g = (int) Math.min(255,Math.round(arr[mat_idx+1])) > 0 ? (int) Math.min(255,Math.round(arr[mat_idx+1])) : 0; 
+			int b = (int) Math.min(255,Math.round(arr[mat_idx+2])) > 0 ? (int) Math.min(255,Math.round(arr[mat_idx+2])) : 0;
+
 			int pix = 0xff000000 | ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
-			img.setRGB(x,y,pix);	    
+			img.setRGB(x,y,pix);
 			mat_idx+=3;
 		    }
 	    }
@@ -137,13 +139,13 @@ public class ImageDisplay {
 	    current_yuv_arr = convert_rgb_to_yuv(rgb_arr[mat_idx],
 						    rgb_arr[mat_idx+1],
 						    rgb_arr[mat_idx+2]);
-			
+
 	    // Add the subarr of yuv values to the output
 	    yuv_output_arr[mat_idx] = current_yuv_arr[0];
 	    yuv_output_arr[mat_idx+1] = current_yuv_arr[1];
 	    yuv_output_arr[mat_idx+2] = current_yuv_arr[2];
 	}
-	
+
 	return yuv_output_arr;
     }
 
@@ -178,7 +180,7 @@ public class ImageDisplay {
 					 int column,
 					 double prev_value,
 					 double[] arr){
-				 
+
 	int hop_count = 0;
 	double output_diff = -999;
 	// Loop through arry until find data or end of row
@@ -218,7 +220,7 @@ public class ImageDisplay {
 		    // Get the current yuv subsample factor
 		    cur_sub_val = subsample_arr[sub_idx];
 
-		    // Get the replacement value    
+		    // Get the replacement value
 		    prev_col_data = column_idx > 0 ? output_arr[rgb_idx-3] : 0;
 		    next_col_diff = get_next_column(width, rgb_idx, column_idx, prev_col_data, arr);
 
@@ -289,7 +291,7 @@ public class ImageDisplay {
 	   avg_b += input_arr[(usa_idx+3)+2];
 	   avg_denom_count++;
 	}
-	
+
 	avg_r /= avg_denom_count;
 	avg_g /= avg_denom_count;
 	avg_b /= avg_denom_count;
@@ -298,107 +300,122 @@ public class ImageDisplay {
 	return output_arr;
     }
 
-    public static double[] scale_rgb_image(int width,
-					   int height,
-					   float scale_w,
-					   float scale_h,
+    public static double check_bad_idx(double[] input_arr,
+				       int possible_idx){
+	double arr_at_trial_idx;
+	try {
+	    //  Block of code to try
+	    arr_at_trial_idx = input_arr[possible_idx]; 
+	}
+	catch(ArrayIndexOutOfBoundsException e) {
+	    //  Block of code to handle errors
+	    return -1.0;
+	}
+	return arr_at_trial_idx;
+    }
+
+    public static double get_surrounding_avg_value(int input_img_width,
+						   int input_img_height,
+						   int input_arr_idx,
+						   double[] input_arr){
+	
+	// Collect surrounding values
+	int top_left = input_arr_idx - (input_img_width*3) - 3;
+	int top_middle = input_arr_idx - (input_img_width*3);
+	int top_right = input_arr_idx - (input_img_width*3) + 3;
+	int middle_left = input_arr_idx - 3;
+	int middle_right = input_arr_idx + 3;
+	int bottom_left = input_arr_idx + (input_img_width*3) - 3;
+	int bottom_middle = input_arr_idx + (input_img_width*3);
+	int bottom_right = input_arr_idx + (input_img_width*3) + 3;
+
+	// Get count used and sum of valid values
+	int[] surrounding_arr = {top_left, top_middle, top_right, middle_left,
+	    middle_right, bottom_left, bottom_middle, bottom_right};
+	int surrounding_count = 0;
+	double sum = 0.0;
+	for(int i = 0; i < 8; i++){
+	    double check_idx_value = check_bad_idx(input_arr, surrounding_arr[i]);
+	    if(check_idx_value != -1.0){
+		surrounding_count++;
+		sum += check_idx_value;
+	    }
+	}
+	// Calculate and return average
+	double avg = sum/surrounding_count;
+	return avg;
+    }
+
+    public static double[] scale_rgb_image(int input_img_width,
+					   int input_img_height,
+					   int output_img_width,
+					   int output_img_height,
 					   int antialias_flag,
 					   double[] input_arr){
-	int new_width = (int) Math.rint(width * scale_w);
-	int new_height = (int) Math.rint(height * scale_h);
-	int usa_idx;
-	int sa_idx = 0;
-	int usa_len = width*height*3;
-	int sa_len = new_width*new_height*3;
+	// Define indexes
+	double input_arr_idx = 0;
+	int output_arr_idx = 0;
+	int input_arr_len = input_img_width * input_img_height * 3;
+	int output_arr_len = output_img_width * output_img_height * 3;
 
-	double[] output_arr = new double[sa_len];
+	// Define arrays
+	double[] output_arr = new double[output_arr_len];
 	double[] sampled_rgb_arr = new double[3];
-	int scale_w_factor = (int)Math.rint(1/scale_w);
-	int scale_h_factor = (int)Math.rint(1/scale_h);
-	System.out.println(scale_w_factor);
-	System.out.println(scale_h_factor);
-	int col = 0;
-	int row = 0;
-	int new_col = 0;
-	int new_row = 0;
 
-	// If no antialiasing
+	// Scale factors
+	double scale_w = (double) input_img_width / output_img_width;
+	double scale_h = (double) input_img_height / output_img_height;
+
+	// Row column tracker for input and output arrays
+	double input_arr_col = 0.0;
+	double input_arr_row = 0.0;
+	double output_arr_col = 0.0;
+	double output_arr_row = 0.0;
+
 	if(antialias_flag == 0){
-	    // Loop through the input arr until end
-	    for(usa_idx = 0; usa_idx < usa_len; usa_idx +=3){
-		// Check if the current column and row are meant to be kept
-		if(col % scale_w_factor == 0 && row % scale_h_factor == 0){
-		    // Populate the output array with the r g b values from the current input array column
-		    output_arr[sa_idx] = input_arr[usa_idx];
-		    output_arr[sa_idx+1] = input_arr[usa_idx+1];
-		    output_arr[sa_idx+2] = input_arr[usa_idx+2];
+	    for(output_arr_idx = 0; output_arr_idx < output_arr_len; output_arr_idx +=3){
+		output_arr_row = (output_arr_idx/output_img_width)/3.0;
+		output_arr_col = (output_arr_idx%(output_img_width*3.0))/3.0;
+		input_arr_row = Math.floor(output_arr_row*scale_h);
+		input_arr_col = Math.floor(output_arr_col*scale_w);
+		input_arr_idx = 3.0*((input_arr_row*input_img_width) + input_arr_col);
 
-		    // Update the input array index because we just filled an r g b set
-		    sa_idx +=3;
-
-		    // Update the column if we are not at the end of the row
-		    if(new_col < new_width - 1){
-			new_col++;
-		    }
-		    // We are at the end of a output row reset values
-		    // output row and column input row and column
-		    else{
-			col = 0;
-			new_col = 0;
-			row++;
-			new_row++;
-			usa_idx = (width * 3 * row)-3;
-			continue;
-		    }
-		}
-		// Update the input array column as we go through it
-		if(col < width - 1){
-		    col++;
-		}
-		// We are at the end of an input array row reset values
-		else{
-		    col = 0;
-		    row++;
-		}
-		// Exit if we filled up the output
-		if(sa_idx >= sa_len){
-		    break;
-		}
+		
+		output_arr[output_arr_idx]   = input_arr[(int)input_arr_idx];
+		output_arr[output_arr_idx+1] = input_arr[(int)input_arr_idx+1];
+		output_arr[output_arr_idx+2] = input_arr[(int)input_arr_idx+2];
 	    }
 	}
 	else{
-	    // Loop through
-	    for(usa_idx = 0; usa_idx < usa_len; usa_idx +=3){
-		if(col % scale_w_factor == 0 && row % scale_h_factor == 0){
-		    // Collect the neighboring rgb values up, right, left, and down
-		    sampled_rgb_arr = collect_rgb_from_neighbors(input_arr,
-								 col,
-								 row,
-								 usa_idx,
-								 width,
-								 height);
-		    // Populate output with the neighboring averages
-		    output_arr[sa_idx] = sampled_rgb_arr[0];
-		    output_arr[sa_idx+1] = sampled_rgb_arr[1];
-		    output_arr[sa_idx+2] = sampled_rgb_arr[2];
-		    sa_idx+=3;
-		    if(sa_idx >= sa_len){
-			System.out.println("TEST");
-			break;
-		    }
-		}
-		if(col < (width - 1)){
-		    col++;
-		}
-		else{
-		    col = 0;
-		    row++;
-		}
+	    for(output_arr_idx = 0; output_arr_idx < output_arr_len; output_arr_idx +=3){
+		// Collect the rows cols and idx
+		output_arr_row = (output_arr_idx/output_img_width)/3.0;
+		output_arr_col = (output_arr_idx%(output_img_width*3.0))/3.0;
+		input_arr_row = Math.floor(output_arr_row*scale_h);
+		input_arr_col = Math.floor(output_arr_col*scale_w);
+		input_arr_idx = 3.0*((input_arr_row*input_img_width) + input_arr_col);
+
+		// Calculate average from 3x3 neighborhood
+		double r = get_surrounding_avg_value(input_img_width,
+						     input_img_height,
+						     (int)input_arr_idx,
+						     input_arr);
+		double g = get_surrounding_avg_value(input_img_width,
+						  input_img_height,
+						  (int)input_arr_idx+1,
+						  input_arr);
+		double b = get_surrounding_avg_value(input_img_width,
+						  input_img_height,
+						  (int)input_arr_idx+2,
+						  input_arr);
+		output_arr[output_arr_idx]   = r;
+		output_arr[output_arr_idx+1] = g;
+		output_arr[output_arr_idx+2] = b;
 	    }
 	}
 	return output_arr;
     }
-    
+
     public void showIms(BufferedImage image, String frame_title){
 	// Use label to display the image
 	JFrame frame = new JFrame();
@@ -476,10 +493,10 @@ public class ImageDisplay {
 	float scale_w = Float.parseFloat(args[4]);
 	float scale_h = Float.parseFloat(args[5]);
 	int antialias_flag = Integer.parseInt(args[6]);
-	int new_height = (int)Math.rint(height*scale_h);
-	int new_width = (int)Math.rint(width*scale_w);
+	int new_height = (int) (height*scale_h);
+	int new_width = (int) (width*scale_w);
 	display_arguments(image_path, Y, U, V, scale_w, scale_h, antialias_flag);
-	
+
 	// Create images and arr to hold rgb images
 	ImageDisplay initial_image = new ImageDisplay();
 	ImageDisplay scaled_image = new ImageDisplay();
@@ -495,41 +512,31 @@ public class ImageDisplay {
 	double[] unscaled_rgb_arr = new double [height*width*3];
 	double[] final_rgb_arr = new double [new_height*new_width*3];
 	int[] subsample_arr = {Y,U,V};
-	
-	// Read in the .rgb file to both images into 2 arrays 
+
+	// Read in the .rgb file to both images into 2 arrays
 	initial_rgb_arr = readImageRGB(width, height, image_path);
 	modified_rgb_arr = readImageRGB(width, height, image_path);
 
 	// Convert the scaled image into the YUV Space
 	yuv_arr = convert_rgb_arr_to_yuv_arr(width, height, modified_rgb_arr);
-	
+
 	// Process YUV subsampling - for scaled image
 	subsampled_yuv_arr = subsample_yuv_arr(Y, U, V, width, height, yuv_arr);
-	
+
 	// Adjust up sampling for display - for scaled
 	adjusted_yuv_arr = adjust_yuv_sampling(width, height, subsample_arr, subsampled_yuv_arr);
 
-	// Convert the scaled image back to the RGB Space	
+	// Convert the scaled image back to the RGB Space
 	unscaled_rgb_arr = convert_yuv_arr_to_rgb_arr(width, height, adjusted_yuv_arr);
 
-	
+
 	// Scale the RGB image with scale_w and scale_h and alias flag
 	final_rgb_arr = scale_rgb_image(width,
 					height,
-					scale_w,
-					scale_h,
+					new_width,
+					new_height,
 					antialias_flag,
 					unscaled_rgb_arr);
-
-	
-	// Check arr
-	/*display_results(initial_rgb_arr,
-			yuv_arr,
-			subsampled_yuv_arr,
-			adjusted_yuv_arr,
-			unscaled_rgb_arr,
-			final_rgb_arr);*/
-	
 	// Show image
 	display_pixel_image(initialImage,
 			    initial_rgb_arr,
@@ -539,6 +546,7 @@ public class ImageDisplay {
 			    final_rgb_arr,
 			    new_width,
 			    new_height);
+
 	initial_image.showIms(initialImage, "Initial");
 	scaled_image.showIms(scaledImage, "Scaled");
     }
