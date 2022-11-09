@@ -1,0 +1,40 @@
+Steven Karl
+Assignment 1 Submission
+------------------------
+
+Files Present:
+-----------------
+1. ImageDisplay.java -> The code for the programming portion of the assingment
+2. Assignment1.pdf -> The answers to the non programming questions for the assingment
+3. README -> This file that explains the submitted information
+
+Prerequistes:
+------------------
+1. Java installed on your computer
+2. Specific version I was using:
+   Command -> java --version
+   Result:
+	Java 17.0.4.1 2022-08-18 LTS
+	Java(TM) SE Runtime Environment (build 17.0.4.1+1-LTS-2)
+	Java HotSpot(TM) 64-Bit Server VM (build 17.0.4.1+1-LTS-2, mixed mode, sharing)
+
+
+How to run the code:
+-------------
+1. Compile the code
+   Command -> javac ImageDisplay.java
+2. Run the code:
+   Command -> java ImageDisplay <Full Image Path> <Y> <U> <V> <scale_w> <scale_h> <antialias flag>
+   Instructions: To run the code you use the above command with the input parameters as shown in the
+   assignment writup. It only accepts the format any more or any less arguments will not work.
+
+
+Issues:
+----------
+If there are any issues I left my contact information below
+
+Contact Info:
+--------------
+1. 408-455-9376
+2. karls@usc.edu
+
