@@ -1,0 +1,46 @@
+Steven Karl
+Assignment 2 Submission
+------------------------
+
+Files Present:
+-----------------
+1. GreenScreen.java -> The code for the programming portion of the assignment
+2. Assignment2.pdf -> The answers to the non programming questions for the assignment
+3. README -> This file that explains the submitted information
+
+Prerequistes:
+------------------
+1. Java installed on your computer
+2. Specific version I was using:
+   Command -> java --version
+   Result:
+	Java 17.0.4.1 2022-08-18 LTS
+	Java(TM) SE Runtime Environment (build 17.0.4.1+1-LTS-2)
+	Java HotSpot(TM) 64-Bit Server VM (build 17.0.4.1+1-LTS-2, mixed mode, sharing)
+
+
+How to run the code:
+-------------
+1. Compile the code
+   Command -> javac GreenScreen.java
+2. Run the code:
+   Command -> java GreenScreen <Foreground images Directory> <Background Images Directory> <Mode>
+   Instructions: To run the code you use the above command with the input parameters as shown in the
+   assignment writup. It only accepts the format any more or any less arguments will not work.
+3. Mode Settings:
+   1. 0 - Normal background no green screen
+   2. 1 - GreenScreen background
+4. Foreground images directory:
+   1. It will look in the directory provided for images that have the 0000.rgb-0479.rgb ending
+5. Background images directory:
+   1. It will look in the directory provided for images that have the 0000.rgb-0479.rgb ending
+   
+
+Issues:
+----------
+If there are any issues I left my contact information below
+
+Contact Info:
+--------------
+1. 408-455-9376
+2. karls@usc.edu
