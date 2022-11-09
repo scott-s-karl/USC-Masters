@@ -1,0 +1,82 @@
+Steven Karl
+Assignment 3 Submission
+------------------------
+
+Files Present:
+-----------------
+Problem_1: (Directory)
+1. DCT_Coding.py -> This is the file that was used to help support problem 1 of the homework:
+   1. Shows DCT for the given source data
+   2. Shows Quantization table
+   3. Shows Zig Zag notation
+   4. Shows the Intemidary AC notation
+
+Problem_2: (Directory)
+1. DWT_Compression_main.java -> The main file to run for Problem 2
+2. READ_RGB.java -> Supporting file that reads the .rgb files into a usable array
+3. Process_Image.java -> Supporting file that processes the image data based on the low pass level
+4. Convert_Image.java -> Supporting file that writes the image array data into a buffered image
+5. DisplayImage.java -> Supporting file that displays the image or images based on the low pass level input
+
+Theory_Support_Files: (Directory)
+1. Assignment3.pdf -> Writeup file that contains the answers to Problem 1 that weren't programming related
+2. README -> This file that explains the submitted information
+
+Prerequistes:
+------------------
+1. Java installed on your computer -> For Problem 2
+2. Specific version I was using:
+   Command -> java --version
+   Result:
+	Java 17.0.4.1 2022-08-18 LTS
+	Java(TM) SE Runtime Environment (build 17.0.4.1+1-LTS-2)
+	Java HotSpot(TM) 64-Bit Server VM (build 17.0.4.1+1-LTS-2, mixed mode, sharing)
+3. Python Installed on your computer -> For Problem 1
+4. Specific version I was using:
+   Command -> python3 --version
+   Result:
+	Python 3.9.7
+
+Problem 1 - How to run the code:
+--------------------------------
+1. Navigate to the directory for Problem 1
+   a. Open Terminal to root of submitted project.
+   b. Type in cd Problem_1
+2. Run the Code
+   a. python3 DCT_Coding.py
+   **Note: Depending on your python version the command to run this script could be just python instead of python3
+
+Problem 2 - How to run the code:
+--------------------------------
+1. Navigate to the directory for Problem 2
+   a. Open Terminal to root of submitted project.
+   b. Type in cd Problem_2
+2. Compile the code
+   a. Command -> javac *.java
+3. Run the code:
+   Command -> java DWT_Compression_main <image path> <low pass level>
+   Instructions: To run the code you use the above command with the input parameters as shown in the
+   assignment writup. It only accepts the format any more or any less arguments will not work.
+4. Low Pass Level Settings:
+   1. 0 - 9:
+      1. This will encode to the indicated level
+      2. Zero out the high pass coeficients
+      3. Decode to get the resulting image
+   2. -1:
+      1. This will encode all the way to 0 level
+      2. This will then decode to each level in turn up to 9
+      3. The remaining high pass coeficients will then be zeroed out
+      4. Then the image will be finished decoding with zeros for the high pass coeficients
+      5. The images will be display in separate frames however they will appear stacked on one another.
+      6. Also if you close one of the frames all will close so be careful
+5. Image Path:
+   1. Need to be a valid .rgb file image
+
+Issues:
+----------
+If there are any issues I left my contact information below
+
+Contact Info:
+--------------
+1. 408-455-9376
+2. karls@usc.edu
